@@ -64,18 +64,22 @@ const Modal = {
 ════════════════════════════════════════════════ */
 const Users = {
   async getAll() {
-    const { data } = await sb.from('users').select('*').order('created');
+    const { data, error } = await sb.from('users').select('*').order('created');
+    if (error) { console.error('getAll users error:', error); toast('DB error: ' + error.message, 'error'); }
     _cachedUsers = data || [];
     return _cachedUsers;
   },
   async get(id) {
     const cached = _cachedUsers.find(u => u.id === id);
     if (cached) return cached;
-    const { data } = await sb.from('users').select('*').eq('id', id).single();
+    const { data, error } = await sb.from('users').select('*').eq('id', id).single();
+    if (error) console.error('get user error:', error);
     return data || null;
   },
   async add(user) {
-    await sb.from('users').insert(user);
+    const { error } = await sb.from('users').insert(user);
+    if (error) { console.error('add user error:', error); toast('Could not save user: ' + error.message, 'error'); return false; }
+    return true;
   },
   async remove(id) {
     await sb.from('users').delete().eq('id', id);
@@ -198,7 +202,8 @@ const Reg = {
     }
 
     const user = { id: uid(), name, created: new Date().toISOString() };
-    await Users.add(user);
+    const ok = await Users.add(user);
+    if (!ok) return;
 
     if (this._photo) Avatar.set(user.id, this._photo);
     if (pinHash) localStorage.setItem(`oppstrack_pin_${user.id}`, pinHash);
