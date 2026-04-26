@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OppsTrack</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+</head>
+
+<body>
+
+  <!-- ════════════════ LOGIN VIEW ════════════════ -->
+  <div id="login-view">
+    <canvas id="bg-canvas"></canvas>
+    <div class="login-content">
+      <div class="login-logo">
+        <div class="logo-icon">🍀</div>
+        <h1>OppsTrack</h1>
+        <p>Your personal data tracking workspace</p>
+      </div>
+      <div class="users-grid" id="users-grid">
+        <!-- rendered by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ REGISTRATION OVERLAY ════════════════ -->
+  <div id="reg-overlay">
+    <div class="reg-box">
+      <button class="reg-close" onclick="Reg.close()">×</button>
+      <h2>Create Account</h2>
+      <p class="reg-sub">Set up your profile to get started</p>
+
+      <!-- Avatar upload -->
+      <div class="reg-avatar-btn" id="reg-avatar-btn" onclick="document.getElementById('reg-photo-input').click()">
+        <div id="reg-avatar-preview" class="reg-avatar-preview">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="28" height="28">
+            <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
+            <circle cx="12" cy="13" r="4" />
+          </svg>
+          <span>Add Photo</span>
+        </div>
+        <input type="file" id="reg-photo-input" accept="image/*" style="display:none"
+          onchange="Reg.handlePhoto(this); this.value=''">
+      </div>
+
+      <!-- Name -->
+      <div class="form-group">
+        <label class="form-label">Your Name *</label>
+        <input class="form-input" id="reg-name" placeholder="Enter your name" maxlength="32"
+          onkeydown="if(event.key==='Enter') Reg.submit()">
+      </div>
+
+      <!-- Optional PIN -->
+      <div class="form-group">
+        <div class="pin-toggle-row">
+          <span class="form-label">Set a 6-digit PIN</span>
+          <label class="toggle">
+            <input type="checkbox" id="reg-pin-toggle" onchange="Reg.togglePin(this.checked)">
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          </label>
+        </div>
+        <div id="reg-pin-wrap" style="display:none; margin-top:12px">
+          <p style="font-size:12px;color:var(--text2);margin-bottom:10px;text-align:center">Choose your 6-digit PIN</p>
+          <div class="pin-digits" id="reg-pin-digits">
+            <input class="pin-digit" maxlength="1" inputmode="numeric" autocomplete="off">
+            <input class="pin-digit" maxlength="1" inputmode="numeric" autocomplete="off">
+            <input class="pin-digit" maxlength="1" inputmode="numeric" autocomplete="off">
+            <input class="pin-digit" maxlength="1" inputmode="numeric" autocomplete="off">
+            <input class="pin-digit" maxlength="1" inputmode="numeric" autocomplete="off">
+            <input class="pin-digit" maxlength="1" inputmode="numeric" autocomplete="off">
+          </div>
+        </div>
+      </div>
+
+      <p id="reg-error" class="reg-error"></p>
+      <button class="btn btn-primary" style="justify-content:center;width:100%;padding:12px"
+        onclick="Reg.submit()">Create Account</button>
+    </div>
+  </div>
+
+  <!-- ════════════════ APP VIEW ════════════════ -->
+  <div id="app-view" style="display:none">
+
+    <!-- Sidebar -->
+    <aside id="sidebar">
+      <div class="sidebar-top">
+        <div class="sidebar-brand">
+          <span class="brand-icon">🍀</span>
+          <span class="brand-name">OppsTrack</span>
+        </div>
+        <div class="sidebar-user" onclick="Avatar.openPicker()" title="Click to change photo">
+          <div class="sidebar-avatar-wrap">
+            <div class="sidebar-avatar" id="sidebar-avatar"></div>
+            <div class="avatar-edit-badge">📷</div>
+          </div>
+          <span id="sidebar-username">User</span>
+          <input type="file" id="avatar-input" accept="image/*" style="display:none"
+            onchange="Avatar.handleUpload(this); this.value=''">
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-btn active" data-section="dashboard" onclick="showSection('dashboard')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" />
+            <rect x="14" y="3" width="7" height="7" />
+            <rect x="14" y="14" width="7" height="7" />
+            <rect x="3" y="14" width="7" height="7" />
+          </svg>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-btn" data-section="notes" onclick="showSection('notes')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+            <polyline points="14,2 14,8 20,8" />
+            <line x1="8" y1="13" x2="16" y2="13" />
+            <line x1="8" y1="17" x2="16" y2="17" />
+          </svg>
+          <span>Notes</span>
+        </button>
+        <button class="nav-btn" data-section="tasks" onclick="showSection('tasks')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 11l3 3L22 4" />
+            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+          </svg>
+          <span>Tasks</span>
+          <span class="nav-badge" id="badge-tasks" style="display:none">0</span>
+        </button>
+        <button class="nav-btn" data-section="calendar" onclick="showSection('calendar')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <path d="M16 2v4M8 2v4M3 10h18" />
+          </svg>
+          <span>Calendar</span>
+        </button>
+        <button class="nav-btn" data-section="links" onclick="showSection('links')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+            <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+          </svg>
+          <span>Links</span>
+        </button>
+        <button class="nav-btn" data-section="ai" onclick="showSection('ai')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 8v4l3 3" />
+          </svg>
+          <span>AI Assistant</span>
+        </button>
+        <button class="nav-btn" data-section="calculator" onclick="showSection('calculator')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="4" y="2" width="16" height="20" rx="2" />
+            <path d="M8 6h8M8 10h2M12 10h2M16 10h0M8 14h2M12 14h2M16 14h0M8 18h2M12 18h2M16 18h0" />
+          </svg>
+          <span>Calculator</span>
+        </button>
+      </nav>
+
+      <button class="pin-sidebar-btn" onclick="PinSetup.open()" id="pin-sidebar-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="11" rx="2" />
+          <path d="M7 11V7a5 5 0 0110 0v4" />
+        </svg>
+        <span id="pin-sidebar-label">Set PIN</span>
+      </button>
+
+      <button class="logout-btn" onclick="logout()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+          <polyline points="16,17 21,12 16,7" />
+          <line x1="21" y1="12" x2="9" y2="12" />
+        </svg>
+        <span>Logout</span>
+      </button>
+    </aside>
+
+    <!-- Main Content -->
+    <main id="main-content">
+
+      <!-- Dashboard -->
+      <section id="section-dashboard" class="section active">
+        <div class="section-header">
+          <div>
+            <h1>Dashboard</h1>
+            <p class="section-sub" id="dashboard-greeting">Welcome back!</p>
+          </div>
+        </div>
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-icon blue">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 11l3 3L22 4" />
+                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+              </svg>
+            </div>
+            <div class="stat-info">
+              <div class="stat-value" id="stat-pending">0</div>
+              <div class="stat-label">Pending Tasks</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 11l3 3L22 4" />
+              </svg>
+            </div>
+            <div class="stat-info">
+              <div class="stat-value" id="stat-done">0</div>
+              <div class="stat-label">Completed</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon purple">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+              </svg>
+            </div>
+            <div class="stat-info">
+              <div class="stat-value" id="stat-links">0</div>
+              <div class="stat-label">Reference Links</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon teal">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+              </svg>
+            </div>
+            <div class="stat-info">
+              <div class="stat-value" id="stat-unread">0</div>
+              <div class="stat-label">Unread Messages</div>
+            </div>
+          </div>
+        </div>
+        <div class="dashboard-grid">
+          <div class="widget">
+            <div class="widget-header">
+              <h3>Recent Tasks</h3><button class="link-btn" onclick="showSection('tasks')">View all →</button>
+            </div>
+            <div id="dash-tasks"></div>
+          </div>
+          <div class="widget">
+            <div class="widget-header">
+              <h3>Recent Messages</h3><button class="link-btn" onclick="showSection('messages')">Open chat →</button>
+            </div>
+            <div id="dash-messages"></div>
+          </div>
+        </div>
+        <div class="widget" style="margin-top:20px">
+          <div class="widget-header">
+            <h3>Recent Notes</h3><button class="link-btn" onclick="showSection('notes')">View all →</button>
+          </div>
+          <div id="dash-notes"></div>
+        </div>
+      </section>
+
+      <!-- Tasks -->
+      <section id="section-tasks" class="section">
+        <div class="section-header">
+          <div>
+            <h1>Tasks</h1>
+            <p class="section-sub">Track and manage your to-dos</p>
+          </div>
+          <button class="btn btn-primary" onclick="Tasks.openAdd()">+ Add Task</button>
+        </div>
+        <div class="filter-tabs">
+          <button class="filter-tab active" onclick="Tasks.filter('all', this)">All</button>
+          <button class="filter-tab" onclick="Tasks.filter('pending', this)">Pending</button>
+          <button class="filter-tab" onclick="Tasks.filter('completed', this)">Completed</button>
+          <button class="filter-tab" onclick="Tasks.filter('high', this)">High Priority</button>
+        </div>
+        <div id="tasks-list" class="tasks-list"></div>
+      </section>
+
+      <!-- Calendar -->
+      <section id="section-calendar" class="section">
+        <div class="section-header">
+          <div>
+            <h1>Calendar</h1>
+            <p class="section-sub">Schedule and notes</p>
+          </div>
+        </div>
+        <div class="calendar-wrapper">
+          <div class="cal-nav">
+            <button class="btn btn-ghost" onclick="Calendar.prev()">← Prev</button>
+            <h2 id="cal-month-label">Month Year</h2>
+            <button class="btn btn-ghost" onclick="Calendar.next()">Next →</button>
+          </div>
+          <div class="cal-grid">
+            <div class="cal-header">Sun</div>
+            <div class="cal-header">Mon</div>
+            <div class="cal-header">Tue</div>
+            <div class="cal-header">Wed</div>
+            <div class="cal-header">Thu</div>
+            <div class="cal-header">Fri</div>
+            <div class="cal-header">Sat</div>
+            <div id="cal-days"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Links -->
+      <section id="section-links" class="section">
+        <div class="section-header">
+          <div>
+            <h1>Reference Links</h1>
+            <p class="section-sub">Organize your bookmarks</p>
+          </div>
+          <button class="btn btn-primary" onclick="Links.openAdd()">+ Add Link</button>
+        </div>
+        <div class="search-bar-wrap">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8" />
+            <path d="M21 21l-4.35-4.35" />
+          </svg>
+          <input type="text" id="links-search" class="search-input" placeholder="Search links..."
+            oninput="Links.search(this.value)">
+        </div>
+        <div id="links-grid" class="links-grid"></div>
+      </section>
+
+      <!-- Notes -->
+      <section id="section-notes" class="section">
+        <div class="section-header">
+          <div>
+            <h1>Notes</h1>
+            <p class="section-sub">Quick notes and ideas</p>
+          </div>
+          <button class="btn btn-primary" onclick="Notes.openAdd()">+ Add Note</button>
+        </div>
+        <div class="search-bar-wrap">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8" />
+            <path d="M21 21l-4.35-4.35" />
+          </svg>
+          <input type="text" id="notes-search" class="search-input" placeholder="Search notes..."
+            oninput="Notes.search(this.value)">
+        </div>
+        <div id="notes-grid" class="notes-grid"></div>
+      </section>
+
+
+
+      <!-- AI Chat -->
+      <section id="section-ai" class="section">
+        <div class="section-header">
+          <div>
+            <h1>AI Assistant</h1>
+            <p class="section-sub">Powered by Jireh.dev</p>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost" onclick="AIChat.openSettings()">⚙ Webhook</button>
+            <button class="btn btn-ghost" onclick="AIChat.clear()">Clear Chat</button>
+          </div>
+        </div>
+        <div class="ai-container">
+          <div id="ai-messages" class="ai-messages">
+            <div class="ai-welcome">
+              <div class="ai-logo">🤖</div>
+              <h3>Hi! I'm your AI assistant.</h3>
+              <p>Ask me anything — planning, research, analysis, or general questions.</p>
+            </div>
+          </div>
+          <div class="ai-input-wrap">
+            <textarea id="ai-input" class="ai-input"
+              placeholder="Type your message... (Shift+Enter for new line, Enter to send)" rows="3"
+              onkeydown="AIChat.keydown(event)"></textarea>
+            <button class="btn btn-primary ai-send-btn" onclick="AIChat.send()" id="ai-send-btn">Send</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Calculator -->
+      <section id="section-calculator" class="section">
+        <div class="section-header">
+          <div>
+            <h1>Calculator</h1>
+            <p class="section-sub">Quick calculations</p>
+          </div>
+        </div>
+        <div class="calc-wrap">
+          <div class="calculator">
+            <div class="calc-display">
+              <div class="calc-expr" id="calc-expr"></div>
+              <div class="calc-num" id="calc-num">0</div>
+            </div>
+            <div class="calc-grid">
+              <button class="calc-btn utility" onclick="Calc.clear()">C</button>
+              <button class="calc-btn utility" onclick="Calc.toggleSign()">±</button>
+              <button class="calc-btn utility" onclick="Calc.percent()">%</button>
+              <button class="calc-btn operator" onclick="Calc.op('/')">÷</button>
+              <button class="calc-btn" onclick="Calc.num('7')">7</button>
+              <button class="calc-btn" onclick="Calc.num('8')">8</button>
+              <button class="calc-btn" onclick="Calc.num('9')">9</button>
+              <button class="calc-btn operator" onclick="Calc.op('*')">×</button>
+              <button class="calc-btn" onclick="Calc.num('4')">4</button>
+              <button class="calc-btn" onclick="Calc.num('5')">5</button>
+              <button class="calc-btn" onclick="Calc.num('6')">6</button>
+              <button class="calc-btn operator" onclick="Calc.op('-')">−</button>
+              <button class="calc-btn" onclick="Calc.num('1')">1</button>
+              <button class="calc-btn" onclick="Calc.num('2')">2</button>
+              <button class="calc-btn" onclick="Calc.num('3')">3</button>
+              <button class="calc-btn operator" onclick="Calc.op('+')">+</button>
+              <button class="calc-btn zero" onclick="Calc.num('0')">0</button>
+              <button class="calc-btn" onclick="Calc.dot()">.</button>
+              <button class="calc-btn operator" onclick="Calc.equals()">=</button>
+            </div>
+          </div>
+          <div class="calc-history">
+            <h3>History</h3>
+            <div id="calc-history-list" class="calc-history-list"></div>
+            <button class="btn btn-ghost btn-sm" onclick="Calc.clearHistory()">Clear History</button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ════════════════ FLOATING CHAT ════════════════ -->
+  <div id="chat-bubble" onclick="Messages.togglePanel()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="26" height="26">
+      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+    </svg>
+    <span id="chat-bubble-badge" class="chat-bubble-badge" style="display:none">0</span>
+  </div>
+
+  <div id="chat-panel">
+    <div class="chat-panel-header">
+      <div class="chat-panel-title" id="chat-panel-title">Messages</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="chat-back-btn" id="chat-back-btn" onclick="Messages.backToContacts()" style="display:none">←
+          Back</button>
+        <button class="chat-panel-close" onclick="Messages.togglePanel()">×</button>
+      </div>
+    </div>
+
+    <!-- Contacts view -->
+    <div id="dm-contacts" class="dm-contacts-list"></div>
+
+    <!-- Conversation view -->
+    <div id="dm-conv-view" style="display:none;flex-direction:column;flex:1;min-height:0">
+      <div id="dm-messages" class="dm-messages"></div>
+      <div class="dm-input-wrap" id="dm-input-area">
+        <div class="dm-input-row">
+          <textarea id="dm-input" class="ai-input" placeholder="Type a message…" rows="2"
+            onkeydown="Messages.keydown(event)"></textarea>
+          <button class="btn btn-primary" onclick="Messages.send()">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ PIN OVERLAY ════════════════ -->
+  <div id="pin-overlay">
+    <div class="pin-box">
+      <div class="pin-lock-icon">🔐</div>
+      <div class="user-avatar" id="pin-avatar" style="width:60px;height:60px;font-size:20px;margin:0 auto 14px"></div>
+      <h2 id="pin-name">Enter PIN</h2>
+      <p>Enter your 6-digit PIN to continue</p>
+      <div class="pin-digits" id="pin-digits">
+        <input class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+        <input class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+        <input class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+        <input class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+        <input class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+        <input class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+      </div>
+      <div class="pin-error" id="pin-error"></div>
+      <div class="pin-actions">
+        <button class="btn btn-primary" onclick="PinAuth.verify()" style="justify-content:center">Unlock</button>
+        <button class="btn btn-ghost" onclick="PinAuth.cancel()">Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ MODAL ════════════════ -->
+  <div id="modal-overlay" class="modal-overlay" onclick="Modal.close()">
+    <div class="modal" onclick="event.stopPropagation()" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h2 id="modal-title"></h2>
+        <button class="modal-close" onclick="Modal.close()">×</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="js/app.js"></script>
+</body>
+
+</html>
