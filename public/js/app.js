@@ -88,10 +88,65 @@ const Users = {
     e.stopPropagation();
     const u = _cachedUsers.find(u => u.id === id);
     if (!u) return;
-    if (!confirm(`Remove user "${u.name}"? All their data will be deleted.`)) return;
-    localStorage.removeItem(`oppstrack_pin_${id}`);
-    localStorage.removeItem(`oppstrack_avatar_${id}`);
-    await this.remove(id);
+    if (u.pin_hash) {
+      this._showDeleteModal(u);
+    } else {
+      if (!confirm(`Remove "${u.name}"? All their data will be deleted.`)) return;
+      await this._doDelete(u);
+    }
+  },
+
+  _QUESTIONS: {
+    pet:    "What is your first pet's name?",
+    color:  "What is your favorite color?",
+    band:   "Name of your favorite band?",
+    animal: "What animal scares you the most?",
+    catdog: "Cat or Dog?",
+  },
+
+  _showDeleteModal(u) {
+    const q = u.secret_question ? this._QUESTIONS[u.secret_question] : null;
+    Modal.show(`Delete Profile`, `
+      <p style="font-size:13px;color:var(--red);margin-bottom:16px">⚠️ Permanently delete <strong>${esc(u.name)}</strong> and all their data?</p>
+      <div class="form-group">
+        <label class="form-label">Enter PIN</label>
+        <input class="form-input" id="del-pin" type="password" inputmode="numeric" maxlength="6" placeholder="••••••" autofocus>
+      </div>
+      ${q ? `<div class="form-group">
+        <label class="form-label">${esc(q)}</label>
+        <input class="form-input" id="del-secret" type="text" placeholder="Your answer...">
+      </div>` : ''}
+      <p id="del-err" style="color:var(--red);font-size:13px;min-height:18px"></p>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
+        <button class="btn btn-danger" style="border:1px solid var(--red)" onclick="Users._verifyDelete('${u.id}')">Delete</button>
+      </div>`);
+  },
+
+  async _verifyDelete(id) {
+    const u = _cachedUsers.find(u => u.id === id);
+    if (!u) return;
+    const errEl = document.getElementById('del-err');
+
+    const pin = document.getElementById('del-pin')?.value.trim();
+    if (!pin) { errEl.textContent = 'Please enter the PIN'; return; }
+    const pinHash = await PinAuth._hash(pin);
+    if (pinHash !== u.pin_hash) { errEl.textContent = 'Incorrect PIN'; return; }
+
+    if (u.secret_question && u.secret_answer) {
+      const ans = document.getElementById('del-secret')?.value.trim().toLowerCase();
+      if (!ans) { errEl.textContent = 'Please answer the secret question'; return; }
+      if (ans !== u.secret_answer) { errEl.textContent = 'Incorrect answer'; return; }
+    }
+
+    Modal.close();
+    await this._doDelete(u);
+  },
+
+  async _doDelete(u) {
+    localStorage.removeItem(`oppstrack_pin_${u.id}`);
+    localStorage.removeItem(`oppstrack_avatar_${u.id}`);
+    await this.remove(u.id);
     await renderLoginPage();
     toast(`${u.name} removed`);
   }
@@ -168,6 +223,8 @@ const Reg = {
     document.getElementById('reg-pin-toggle').checked = false;
     document.getElementById('reg-pin-wrap').style.display = 'none';
     document.getElementById('reg-error').textContent = '';
+    document.getElementById('reg-secret-q').value = '';
+    document.getElementById('reg-secret-a').value = '';
     this._resetAvatar();
     this._clearPinDigits();
     setTimeout(() => document.getElementById('reg-name').focus(), 100);
@@ -220,14 +277,19 @@ const Reg = {
     const pinOn = document.getElementById('reg-pin-toggle').checked;
     let pinHash = null;
 
+    let secretQuestion = null, secretAnswer = null;
     if (pinOn) {
       const pin = this._getPinValue();
       if (pin.length < 6) { errEl.textContent = 'Please enter all 6 PIN digits'; return; }
       pinHash = await PinAuth._hash(pin);
+      secretQuestion = document.getElementById('reg-secret-q').value;
+      secretAnswer   = document.getElementById('reg-secret-a').value.trim().toLowerCase();
+      if (!secretQuestion) { errEl.textContent = 'Please select a secret question'; return; }
+      if (!secretAnswer)   { errEl.textContent = 'Please enter your secret answer'; return; }
     }
 
     const avatar = this._photo ? await Avatar._resize(this._photo, 120) : null;
-    const user = { id: uid(), name, created: new Date().toISOString(), pin_hash: pinHash || null, avatar };
+    const user = { id: uid(), name, created: new Date().toISOString(), pin_hash: pinHash || null, avatar, secret_question: secretQuestion, secret_answer: secretAnswer };
     const ok = await Users.add(user);
     if (!ok) return;
 
