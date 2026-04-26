@@ -98,13 +98,38 @@ const Users = {
 };
 
 /* ════════════════════════════════════════════════
-   AVATAR (stays local — base64 too large for DB)
+   AVATAR (synced to Supabase, cached in localStorage)
 ════════════════════════════════════════════════ */
 const Avatar = {
-  get: id => localStorage.getItem(`oppstrack_avatar_${id}`) || null,
-  set(id, dataUrl) {
-    localStorage.setItem(`oppstrack_avatar_${id}`, dataUrl);
-    if (currentUser && currentUser.id === id) this._applySidebar(dataUrl, id);
+  get(id) {
+    const user = _cachedUsers.find(u => u.id === id);
+    if (user && user.avatar) return user.avatar;
+    return localStorage.getItem(`oppstrack_avatar_${id}`) || null;
+  },
+
+  async set(id, dataUrl) {
+    const compressed = await this._resize(dataUrl, 120);
+    localStorage.setItem(`oppstrack_avatar_${id}`, compressed);
+    await sb.from('users').update({ avatar: compressed }).eq('id', id);
+    const user = _cachedUsers.find(u => u.id === id);
+    if (user) user.avatar = compressed;
+    if (currentUser && currentUser.id === id) this._applySidebar(compressed, id);
+  },
+
+  _resize(dataUrl, size) {
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const min = Math.min(img.width, img.height);
+        const sx = (img.width - min) / 2, sy = (img.height - min) / 2;
+        ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = dataUrl;
+    });
   },
 
   _applySidebar(dataUrl, id) {
@@ -125,7 +150,7 @@ const Avatar = {
     const file = input.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = e => { this.set(currentUser.id, e.target.result); toast('Profile photo updated!'); };
+    reader.onload = e => { this.set(currentUser.id, e.target.result).then(() => toast('Profile photo updated!')); };
     reader.readAsDataURL(file);
   }
 };
@@ -201,11 +226,12 @@ const Reg = {
       pinHash = await PinAuth._hash(pin);
     }
 
-    const user = { id: uid(), name, created: new Date().toISOString() };
+    const avatar = this._photo ? await Avatar._resize(this._photo, 120) : null;
+    const user = { id: uid(), name, created: new Date().toISOString(), pin_hash: pinHash || null, avatar };
     const ok = await Users.add(user);
     if (!ok) return;
 
-    if (this._photo) Avatar.set(user.id, this._photo);
+    if (avatar) localStorage.setItem(`oppstrack_avatar_${user.id}`, avatar);
     if (pinHash) localStorage.setItem(`oppstrack_pin_${user.id}`, pinHash);
 
     this.close();
@@ -414,16 +440,38 @@ const PinAuth = {
   _pending: null,
 
   _key: id => `oppstrack_pin_${id}`,
-  hasPin: id => !!localStorage.getItem(`oppstrack_pin_${id}`),
+  hasPin(id) {
+    const user = _cachedUsers.find(u => u.id === id);
+    if (user) return !!user.pin_hash;
+    return !!localStorage.getItem(`oppstrack_pin_${id}`);
+  },
 
   async _hash(pin) {
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('oppstrack_v1_' + pin));
     return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
   },
 
-  async setPin(id, pin)  { localStorage.setItem(this._key(id), await this._hash(pin)); },
-  removePin: id          => localStorage.removeItem(`oppstrack_pin_${id}`),
-  async checkPin(id, pin){ return localStorage.getItem(this._key(id)) === await this._hash(pin); },
+  async setPin(id, pin) {
+    const hash = await this._hash(pin);
+    localStorage.setItem(this._key(id), hash);
+    await sb.from('users').update({ pin_hash: hash }).eq('id', id);
+    const user = _cachedUsers.find(u => u.id === id);
+    if (user) user.pin_hash = hash;
+  },
+
+  removePin(id) {
+    localStorage.removeItem(`oppstrack_pin_${id}`);
+    sb.from('users').update({ pin_hash: null }).eq('id', id);
+    const user = _cachedUsers.find(u => u.id === id);
+    if (user) user.pin_hash = null;
+  },
+
+  async checkPin(id, pin) {
+    const hash = await this._hash(pin);
+    const user = _cachedUsers.find(u => u.id === id);
+    if (user && user.pin_hash) return user.pin_hash === hash;
+    return localStorage.getItem(this._key(id)) === hash;
+  },
 
   prompt(id, name) {
     this._pending = id;
