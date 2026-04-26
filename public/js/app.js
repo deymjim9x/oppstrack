@@ -1,13 +1,20 @@
 /* ════════════════════════════════════════════════
-   OppsTrack — Main Application
+   OppsTrack — Main Application (Supabase Edition)
 ════════════════════════════════════════════════ */
 
-// ── State ──────────────────────────────────────
-let currentUser    = null; // { id, name }
-let currentSection = 'dashboard';
-let currentChatId  = null; // userId of open conversation
+// ── Supabase Client ─────────────────────────────
+const SUPABASE_URL = 'https://ouyemnnrmwyqpnspdzqn.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im91eWVtbm5ybXd5cXBuc3BkenFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMDgzMTAsImV4cCI6MjA5Mjc4NDMxMH0.NEryKfJFvPiaQtvV5Zg32bEuT_SCBtku47eV4ZehYnk';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ── Palette (cycles through for new users) ─────
+// ── State ──────────────────────────────────────
+let currentUser    = null;
+let currentSection = 'dashboard';
+let currentChatId  = null;
+let _msgChannel    = null;
+let _cachedUsers   = [];
+
+// ── Palette ────────────────────────────────────
 const GRADIENTS = [
   '135deg, #58a6ff, #bc8cff',
   '135deg, #3fb950, #06b6d4',
@@ -18,22 +25,13 @@ const GRADIENTS = [
 ];
 
 function getUserGradient(userId) {
-  const all = Users.getAll();
-  const idx = all.findIndex(u => u.id === userId);
+  const idx = _cachedUsers.findIndex(u => u.id === userId);
   return GRADIENTS[(idx < 0 ? 0 : idx) % GRADIENTS.length];
 }
 
 function getInitials(name) {
   return name.trim().split(/\s+/).map(w => w[0].toUpperCase()).slice(0, 2).join('');
 }
-
-// ── Storage (per-user, keyed by id) ───────────
-const S = {
-  key: k => `osd_${currentUser.id}_${k}`,
-  get: k => { try { return JSON.parse(localStorage.getItem(S.key(k))); } catch { return null; } },
-  set: (k, v) => localStorage.setItem(S.key(k), JSON.stringify(v)),
-  del: k => localStorage.removeItem(S.key(k))
-};
 
 // ── Toast ──────────────────────────────────────
 function toast(msg, type = 'success') {
@@ -65,35 +63,43 @@ const Modal = {
    USERS
 ════════════════════════════════════════════════ */
 const Users = {
-  _key: 'oppstrack_users',
-  getAll() { try { return JSON.parse(localStorage.getItem(this._key)) || []; } catch { return []; } },
-  save(list) { localStorage.setItem(this._key, JSON.stringify(list)); },
-  get(id) { return this.getAll().find(u => u.id === id) || null; },
-  add(user) { const list = this.getAll(); list.push(user); this.save(list); },
-  remove(id) { this.save(this.getAll().filter(u => u.id !== id)); },
-  confirmDelete(id, e) {
+  async getAll() {
+    const { data } = await sb.from('users').select('*').order('created');
+    _cachedUsers = data || [];
+    return _cachedUsers;
+  },
+  async get(id) {
+    const cached = _cachedUsers.find(u => u.id === id);
+    if (cached) return cached;
+    const { data } = await sb.from('users').select('*').eq('id', id).single();
+    return data || null;
+  },
+  async add(user) {
+    await sb.from('users').insert(user);
+  },
+  async remove(id) {
+    await sb.from('users').delete().eq('id', id);
+  },
+  async confirmDelete(id, e) {
     e.stopPropagation();
-    const u = this.get(id);
+    const u = _cachedUsers.find(u => u.id === id);
     if (!u) return;
     if (!confirm(`Remove user "${u.name}"? All their data will be deleted.`)) return;
-    // Clear all their data
-    Object.keys(localStorage).filter(k => k.startsWith(`osd_${id}_`)).forEach(k => localStorage.removeItem(k));
     localStorage.removeItem(`oppstrack_pin_${id}`);
     localStorage.removeItem(`oppstrack_avatar_${id}`);
-    this.remove(id);
-    renderLoginPage();
+    await this.remove(id);
+    await renderLoginPage();
     toast(`${u.name} removed`);
   }
 };
 
 /* ════════════════════════════════════════════════
-   AVATAR
+   AVATAR (stays local — base64 too large for DB)
 ════════════════════════════════════════════════ */
 const Avatar = {
-  _key: id => `oppstrack_avatar_${id}`,
   get: id => localStorage.getItem(`oppstrack_avatar_${id}`) || null,
   set(id, dataUrl) {
-    localStorage.setItem(this._key(id), dataUrl);
+    localStorage.setItem(`oppstrack_avatar_${id}`, dataUrl);
     if (currentUser && currentUser.id === id) this._applySidebar(dataUrl, id);
   },
 
@@ -192,13 +198,13 @@ const Reg = {
     }
 
     const user = { id: uid(), name, created: new Date().toISOString() };
-    Users.add(user);
+    await Users.add(user);
 
     if (this._photo) Avatar.set(user.id, this._photo);
     if (pinHash) localStorage.setItem(`oppstrack_pin_${user.id}`, pinHash);
 
     this.close();
-    renderLoginPage();
+    await renderLoginPage();
     toast(`Welcome, ${name}!`);
   }
 };
@@ -206,8 +212,8 @@ const Reg = {
 /* ════════════════════════════════════════════════
    AUTH
 ════════════════════════════════════════════════ */
-function renderLoginPage() {
-  const users = Users.getAll();
+async function renderLoginPage() {
+  const users = await Users.getAll();
   const grid  = document.getElementById('users-grid');
   let html = '';
 
@@ -238,8 +244,8 @@ function renderLoginPage() {
   grid.innerHTML = html;
 }
 
-function selectUser(id) {
-  const user = Users.get(id);
+async function selectUser(id) {
+  const user = await Users.get(id);
   if (!user) return;
   if (PinAuth.hasPin(id)) PinAuth.prompt(id, user.name);
   else login(user);
@@ -251,7 +257,6 @@ function login(user) {
   document.getElementById('app-view').style.display    = 'flex';
   ParticlesBg.stop();
 
-  // Sidebar avatar
   const av  = document.getElementById('sidebar-avatar');
   const pic = Avatar.get(user.id);
   if (pic) { av.innerHTML = `<img src="${pic}" alt="${esc(user.name)}">`;  av.style.background = ''; }
@@ -262,6 +267,7 @@ function login(user) {
 
   currentChatId = null;
   document.getElementById('chat-bubble').classList.add('visible');
+  Messages.subscribeRealtime();
   Messages.updateBadge();
   showSection('dashboard');
   AIChat.init();
@@ -270,6 +276,7 @@ function login(user) {
 function logout() {
   currentUser = null;
   currentChatId = null;
+  if (_msgChannel) { sb.removeChannel(_msgChannel); _msgChannel = null; }
   const bubble = document.getElementById('chat-bubble');
   bubble.classList.remove('visible');
   const panel = document.getElementById('chat-panel');
@@ -297,7 +304,7 @@ function showSection(name) {
     case 'calendar':   Calendar.render();  break;
     case 'links':      Links.render();     break;
     case 'notes':      Notes.render();     break;
-    case 'messages':   Messages.render();  break;
+    case 'messages':   if (!Messages._open) Messages.togglePanel(); break;
   }
 }
 
@@ -334,7 +341,7 @@ const ParticlesBg = {
       vy: (Math.random() - 0.5) * 0.5,
       r:  Math.random() * 1.8 + 0.6,
       op: Math.random() * 0.45 + 0.15,
-      hue: Math.random() < 0.6 ? 215 : 270,  // blue or purple
+      hue: Math.random() < 0.6 ? 215 : 270,
     }));
   },
 
@@ -416,7 +423,6 @@ const PinAuth = {
   prompt(id, name) {
     this._pending = id;
     this._clear();
-    const u   = Users.get(id);
     const pic = Avatar.get(id);
     const av  = document.getElementById('pin-avatar');
     av.dataset.user = id;
@@ -440,7 +446,7 @@ const PinAuth = {
     const ok = await this.checkPin(this._pending, pin);
     if (ok) {
       document.getElementById('pin-overlay').classList.remove('open');
-      const user = Users.get(this._pending);
+      const user = await Users.get(this._pending);
       this._pending = null;
       login(user);
     } else {
@@ -538,15 +544,23 @@ const PinSetup = {
    DASHBOARD
 ════════════════════════════════════════════════ */
 const Dashboard = {
-  render() {
-    const tasks = S.get('tasks') || [];
-    const links = S.get('links') || [];
-    const pending   = tasks.filter(t => !t.done);
-    const completed = tasks.filter(t => t.done);
+  async render() {
+    const [{ data: tasks }, { data: links }, { data: notes }] = await Promise.all([
+      sb.from('tasks').select('*').eq('user_id', currentUser.id),
+      sb.from('links').select('*').eq('user_id', currentUser.id),
+      sb.from('notes').select('*').eq('user_id', currentUser.id).order('created'),
+    ]);
+
+    const allTasks = tasks || [];
+    const allLinks = links || [];
+    const allNotes = notes || [];
+
+    const pending   = allTasks.filter(t => !t.done);
+    const completed = allTasks.filter(t => t.done);
 
     document.getElementById('stat-pending').textContent = pending.length;
     document.getElementById('stat-done').textContent    = completed.length;
-    document.getElementById('stat-links').textContent   = links.length;
+    document.getElementById('stat-links').textContent   = allLinks.length;
 
     const hour  = new Date().getHours();
     const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -558,7 +572,7 @@ const Dashboard = {
 
     // Recent tasks
     const dashTasks = document.getElementById('dash-tasks');
-    const recent = tasks.slice(-5).reverse();
+    const recent = allTasks.slice(-5).reverse();
     dashTasks.innerHTML = recent.length
       ? recent.map(t => `<div class="dash-task-item">
           <div class="task-check ${t.done ? 'checked' : ''}" style="pointer-events:none"></div>
@@ -569,7 +583,7 @@ const Dashboard = {
 
     // Recent notes
     const dashNotes = document.getElementById('dash-notes');
-    const recentNotes = (S.get('notes') || []).slice(-6).reverse();
+    const recentNotes = allNotes.slice(-6).reverse();
     if (recentNotes.length) {
       dashNotes.innerHTML = `<div class="dash-notes-grid">${
         recentNotes.map(n => {
@@ -584,28 +598,27 @@ const Dashboard = {
       dashNotes.innerHTML = '<div class="dash-empty">No notes yet</div>';
     }
 
-    // Unread messages
-    const unread = Messages.totalUnread();
+    // Unread badge
+    const unread = await Messages.totalUnread();
     document.getElementById('stat-unread').textContent = unread;
     Messages.updateBadge();
 
     // Recent messages preview
     const dashMsgs = document.getElementById('dash-messages');
-    const others   = Users.getAll().filter(u => u.id !== currentUser.id);
-    const recentMsgs = [];
-    others.forEach(o => {
-      const conv = Messages.getConversation(o.id);
-      const last = conv[conv.length - 1];
-      if (last) recentMsgs.push({ msg: last, other: o });
-    });
-    recentMsgs.sort((a, b) => new Date(b.msg.timestamp) - new Date(a.msg.timestamp));
+    const others = _cachedUsers.filter(u => u.id !== currentUser.id);
+    const convos = await Promise.all(others.map(async o => {
+      const msgs = await Messages.getConversation(o.id);
+      const last = msgs[msgs.length - 1];
+      return last ? { msg: last, other: o } : null;
+    }));
+    const recentMsgs = convos.filter(Boolean).sort((a, b) => new Date(b.msg.created) - new Date(a.msg.created));
 
     if (recentMsgs.length === 0) {
       dashMsgs.innerHTML = '<div class="dash-empty">No messages yet</div>';
     } else {
       dashMsgs.innerHTML = recentMsgs.slice(0, 5).map(({ msg, other }) => {
-        const sender = msg.from === currentUser.id ? 'You' : other.name;
-        const time   = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const sender = msg.from_user_id === currentUser.id ? 'You' : other.name;
+        const time   = new Date(msg.created).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         return `<div class="dash-task-item" style="cursor:pointer" onclick="Messages._open||Messages.togglePanel()">
           <span style="font-size:11px;color:var(--accent);min-width:40px">${esc(sender)}</span>
           <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(msg.text)}</span>
@@ -622,8 +635,10 @@ const Dashboard = {
 const Tasks = {
   _filter: 'all',
 
-  getAll() { return S.get('tasks') || []; },
-  save(t)  { S.set('tasks', t); },
+  async getAll() {
+    const { data } = await sb.from('tasks').select('*').eq('user_id', currentUser.id).order('created');
+    return data || [];
+  },
 
   filter(f, btn) {
     this._filter = f;
@@ -632,8 +647,8 @@ const Tasks = {
     this.render();
   },
 
-  render() {
-    const tasks = this.getAll();
+  async render() {
+    const tasks = await this.getAll();
     let list = tasks;
     if (this._filter === 'pending')   list = tasks.filter(t => !t.done);
     if (this._filter === 'completed') list = tasks.filter(t => t.done);
@@ -649,10 +664,10 @@ const Tasks = {
         <div class="task-check ${t.done ? 'checked' : ''}" onclick="Tasks.toggle('${t.id}')"></div>
         <div class="task-body">
           <div class="task-title">${esc(t.title)}</div>
-          ${t.desc ? `<div class="task-desc">${esc(t.desc)}</div>` : ''}
+          ${t.description ? `<div class="task-desc">${esc(t.description)}</div>` : ''}
           <div class="task-meta">
             <span class="badge badge-${t.priority}">${t.priority}</span>
-            ${t.dueDate ? `<span class="task-date">Due: ${t.dueDate}</span>` : ''}
+            ${t.due_date ? `<span class="task-date">Due: ${t.due_date}</span>` : ''}
           </div>
         </div>
         <div class="task-actions">
@@ -683,24 +698,37 @@ const Tasks = {
       </div>`);
   },
 
-  add() {
+  async add() {
     const title = document.getElementById('t-title').value.trim();
     if (!title) { toast('Please enter a task title', 'error'); return; }
-    const tasks = this.getAll();
-    tasks.push({ id: uid(), title, desc: document.getElementById('t-desc').value.trim(),
+    await sb.from('tasks').insert({
+      id: uid(),
+      user_id: currentUser.id,
+      title,
+      description: document.getElementById('t-desc').value.trim(),
       priority: document.getElementById('t-priority').value,
-      dueDate: document.getElementById('t-due').value, done: false, created: new Date().toISOString() });
-    this.save(tasks); Modal.close(); this.render(); toast('Task added!');
+      due_date: document.getElementById('t-due').value,
+      done: false,
+      created: new Date().toISOString(),
+    });
+    Modal.close();
+    this.render();
+    toast('Task added!');
   },
 
-  toggle(id) {
-    const tasks = this.getAll();
+  async toggle(id) {
+    const tasks = await this.getAll();
     const t = tasks.find(t => t.id === id);
-    if (t) t.done = !t.done;
-    this.save(tasks); this.render();
+    if (!t) return;
+    await sb.from('tasks').update({ done: !t.done }).eq('id', id);
+    this.render();
   },
 
-  delete(id) { this.save(this.getAll().filter(t => t.id !== id)); this.render(); toast('Task deleted'); }
+  async delete(id) {
+    await sb.from('tasks').delete().eq('id', id);
+    this.render();
+    toast('Task deleted');
+  }
 };
 
 /* ════════════════════════════════════════════════
@@ -709,33 +737,40 @@ const Tasks = {
 const Calendar = {
   year: new Date().getFullYear(), month: new Date().getMonth(),
 
-  render() {
+  async render() {
     const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     document.getElementById('cal-month-label').textContent = `${months[this.month]} ${this.year}`;
-    this._renderDays();
+    await this._renderDays();
   },
 
-  _renderDays() {
-    const cal = S.get('calendar') || {};
+  async _renderDays() {
+    const { data } = await sb.from('calendar_notes').select('*').eq('user_id', currentUser.id);
+    const rows = data || [];
+    const cal = {};
+    rows.forEach(r => {
+      if (!cal[r.date_key]) cal[r.date_key] = [];
+      cal[r.date_key].push({ id: r.id, text: r.text, created: r.created });
+    });
+
     const today = new Date(); today.setHours(0,0,0,0);
-    const firstDay = new Date(this.year, this.month, 1).getDay();
+    const firstDay    = new Date(this.year, this.month, 1).getDay();
     const daysInMonth = new Date(this.year, this.month + 1, 0).getDate();
     const daysInPrev  = new Date(this.year, this.month, 0).getDate();
     let html = '';
-    for (let i = firstDay - 1; i >= 0; i--)   html += this._cell(new Date(this.year, this.month-1, daysInPrev-i), true, cal, today);
-    for (let d = 1; d <= daysInMonth; d++)      html += this._cell(new Date(this.year, this.month, d), false, cal, today);
+    for (let i = firstDay - 1; i >= 0; i--)  html += this._cell(new Date(this.year, this.month-1, daysInPrev-i), true, cal, today);
+    for (let d = 1; d <= daysInMonth; d++)     html += this._cell(new Date(this.year, this.month, d), false, cal, today);
     const total = firstDay + daysInMonth;
     const rem   = total % 7 === 0 ? 0 : 7 - (total % 7);
-    for (let i = 1; i <= rem; i++)              html += this._cell(new Date(this.year, this.month+1, i), true, cal, today);
+    for (let i = 1; i <= rem; i++)             html += this._cell(new Date(this.year, this.month+1, i), true, cal, today);
     document.getElementById('cal-days').innerHTML = html;
   },
 
   _cell(date, other, cal, today) {
-    const key   = dateKey(date);
-    const notes = cal[key] || [];
+    const key     = dateKey(date);
+    const notes   = cal[key] || [];
     const isToday = date.getTime() === today.getTime();
-    const dots  = notes.slice(0,3).map(n => `<div class="day-note-dot">${esc(n.text)}</div>`).join('');
-    const more  = notes.length > 3 ? `<div class="day-note-dot" style="opacity:.5">+${notes.length-3} more</div>` : '';
+    const dots    = notes.slice(0,3).map(n => `<div class="day-note-dot">${esc(n.text)}</div>`).join('');
+    const more    = notes.length > 3 ? `<div class="day-note-dot" style="opacity:.5">+${notes.length-3} more</div>` : '';
     return `<div class="cal-day ${other?'other-month':''} ${isToday?'today':''}"
       onclick="Calendar.openDay('${key}','${fmtFull(date)}')">
       <div class="day-num">${date.getDate()}</div>
@@ -746,13 +781,17 @@ const Calendar = {
   prev() { this.month--; if (this.month<0){this.month=11;this.year--;} this.render(); },
   next() { this.month++; if (this.month>11){this.month=0;this.year++;} this.render(); },
 
-  openDay(key, label) { this._modal(key, label, (S.get('calendar')||{})[key]||[]); },
+  async openDay(key, label) {
+    const { data } = await sb.from('calendar_notes').select('*').eq('user_id', currentUser.id).eq('date_key', key);
+    const notes = (data || []).map(r => ({ id: r.id, text: r.text }));
+    this._modal(key, label, notes);
+  },
 
   _modal(key, label, notes) {
     Modal.show(`📅 ${label}`, `
       <div style="display:flex;flex-direction:column;gap:10px">
         <div id="notes-list" style="display:flex;flex-direction:column;gap:8px">
-          ${notes.length ? notes.map((n,i) => `<div class="note-item">
+          ${notes.length ? notes.map(n => `<div class="note-item">
             <span class="note-text">${esc(n.text)}</span>
             <button class="btn btn-danger btn-sm" onclick="Calendar.deleteNote('${key}','${n.id}','${esc(label)}')">×</button>
           </div>`).join('') : '<div class="dash-empty">No notes for this day.</div>'}
@@ -768,19 +807,25 @@ const Calendar = {
       </div>`);
   },
 
-  addNote(key, label) {
+  async addNote(key, label) {
     const text = document.getElementById('new-note').value.trim();
     if (!text) return;
-    const cal = S.get('calendar') || {};
-    if (!cal[key]) cal[key] = [];
-    cal[key].push({ id: uid(), text, created: new Date().toISOString() });
-    S.set('calendar', cal); this.render(); this.openDay(key, label); toast('Note added!');
+    await sb.from('calendar_notes').insert({
+      id: uid(),
+      user_id: currentUser.id,
+      date_key: key,
+      text,
+      created: new Date().toISOString(),
+    });
+    this.render();
+    this.openDay(key, label);
+    toast('Note added!');
   },
 
-  deleteNote(key, nid, label) {
-    const cal = S.get('calendar') || {};
-    if (cal[key]) cal[key] = cal[key].filter(n => n.id !== nid);
-    S.set('calendar', cal); this.render(); this.openDay(key, label);
+  async deleteNote(key, nid, label) {
+    await sb.from('calendar_notes').delete().eq('id', nid);
+    this.render();
+    this.openDay(key, label);
   }
 };
 
@@ -789,15 +834,18 @@ const Calendar = {
 ════════════════════════════════════════════════ */
 const Links = {
   _q: '',
-  getAll() { return S.get('links') || []; },
-  save(l)  { S.set('links', l); },
 
-  render() {
-    const q = this._q.toLowerCase();
-    const links = this.getAll();
+  async getAll() {
+    const { data } = await sb.from('links').select('*').eq('user_id', currentUser.id).order('created');
+    return data || [];
+  },
+
+  async render() {
+    const q     = this._q.toLowerCase();
+    const links = await this.getAll();
     const filtered = q ? links.filter(l =>
       l.title.toLowerCase().includes(q) || l.url.toLowerCase().includes(q) ||
-      (l.desc||'').toLowerCase().includes(q) || (l.tags||[]).some(t => t.toLowerCase().includes(q))
+      (l.description||'').toLowerCase().includes(q) || (l.tags||[]).some(t => t.toLowerCase().includes(q))
     ) : links;
     const el = document.getElementById('links-grid');
     if (!filtered.length) {
@@ -815,7 +863,7 @@ const Links = {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
           </button>
         </div>
-        ${l.desc ? `<div class="link-desc">${esc(l.desc)}</div>` : ''}
+        ${l.description ? `<div class="link-desc">${esc(l.description)}</div>` : ''}
         ${tags ? `<div class="link-tags">${tags}</div>` : ''}
       </div>`;
     }).join('');
@@ -835,17 +883,30 @@ const Links = {
       </div>`);
   },
 
-  add() {
+  async add() {
     const title = document.getElementById('l-title').value.trim();
     const url   = document.getElementById('l-url').value.trim();
     if (!title || !url) { toast('Title and URL required', 'error'); return; }
     const tags  = document.getElementById('l-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
-    const links = this.getAll();
-    links.push({ id: uid(), title, url, desc: document.getElementById('l-desc').value.trim(), tags, created: new Date().toISOString() });
-    this.save(links); Modal.close(); this.render(); toast('Link added!');
+    await sb.from('links').insert({
+      id: uid(),
+      user_id: currentUser.id,
+      title,
+      url,
+      description: document.getElementById('l-desc').value.trim(),
+      tags,
+      created: new Date().toISOString(),
+    });
+    Modal.close();
+    this.render();
+    toast('Link added!');
   },
 
-  delete(id) { this.save(this.getAll().filter(l => l.id !== id)); this.render(); toast('Link deleted'); }
+  async delete(id) {
+    await sb.from('links').delete().eq('id', id);
+    this.render();
+    toast('Link deleted');
+  }
 };
 
 /* ════════════════════════════════════════════════
@@ -867,14 +928,16 @@ const Notes = {
     { id: 'gray',    bg: '#35393f', border: '#54585f' },
   ],
 
-  getAll() { return S.get('notes') || []; },
-  save(n)  { S.set('notes', n); },
+  async getAll() {
+    const { data } = await sb.from('notes').select('*').eq('user_id', currentUser.id).order('created');
+    return data || [];
+  },
 
   _getColor(id) { return this.COLORS.find(c => c.id === id) || this.COLORS[0]; },
 
-  render() {
-    const q = this._q.toLowerCase();
-    const notes = this.getAll();
+  async render() {
+    const q     = this._q.toLowerCase();
+    const notes = await this.getAll();
     const filtered = q
       ? notes.filter(n => (n.title||'').toLowerCase().includes(q) || (n.body||'').toLowerCase().includes(q))
       : notes;
@@ -953,25 +1016,27 @@ const Notes = {
     this._applyModalColor('default');
   },
 
-  add() {
+  async add() {
     const body = document.getElementById('note-body').value.trim();
     if (!body) { toast('Please write something!', 'error'); return; }
-    const notes = this.getAll();
-    notes.push({
+    await sb.from('notes').insert({
       id: uid(),
+      user_id: currentUser.id,
       title: document.getElementById('note-title').value.trim(),
       body,
       color: document.getElementById('note-color-input').value || 'default',
       created: new Date().toISOString(),
+      updated: new Date().toISOString(),
     });
-    this.save(notes);
     const modal = document.querySelector('#modal-overlay .modal');
     if (modal) { modal.style.background = ''; modal.style.borderColor = ''; }
-    Modal.close(); this.render(); toast('Note saved!');
+    Modal.close();
+    this.render();
+    toast('Note saved!');
   },
 
-  openEdit(id) {
-    const note = this.getAll().find(n => n.id === id);
+  async openEdit(id) {
+    const { data: note } = await sb.from('notes').select('*').eq('id', id).single();
     if (!note) return;
     const colorId = note.color || 'default';
     Modal.show('Edit Note', `
@@ -1001,135 +1066,73 @@ const Notes = {
     Modal.close();
   },
 
-  update(id) {
+  async update(id) {
     const body = document.getElementById('note-body').value.trim();
     if (!body) { toast('Please write something!', 'error'); return; }
-    const notes = this.getAll();
-    const n = notes.find(n => n.id === id);
-    if (!n) return;
-    n.title   = document.getElementById('note-title').value.trim();
-    n.body    = body;
-    n.color   = document.getElementById('note-color-input').value || 'default';
-    n.updated = new Date().toISOString();
-    this.save(notes);
+    await sb.from('notes').update({
+      title:   document.getElementById('note-title').value.trim(),
+      body,
+      color:   document.getElementById('note-color-input').value || 'default',
+      updated: new Date().toISOString(),
+    }).eq('id', id);
     const modal = document.querySelector('#modal-overlay .modal');
     if (modal) { modal.style.background = ''; modal.style.borderColor = ''; }
-    Modal.close(); this.render(); toast('Note updated!');
+    Modal.close();
+    this.render();
+    toast('Note updated!');
   },
 
-  delete(id, e) {
+  async delete(id, e) {
     if (e) e.stopPropagation();
-    this.save(this.getAll().filter(n => n.id !== id));
+    await sb.from('notes').delete().eq('id', id);
     const modal = document.querySelector('#modal-overlay .modal');
     if (modal) { modal.style.background = ''; modal.style.borderColor = ''; }
-    Modal.close(); this.render(); toast('Note deleted');
+    Modal.close();
+    this.render();
+    toast('Note deleted');
   }
 };
 
 /* ════════════════════════════════════════════════
-   PDFs
-════════════════════════════════════════════════ */
-const PDFs = {
-  _doc: null, _page: 1, _pages: 1,
-
-  load() {
-    document.getElementById('pdfs-list').innerHTML = '<div style="color:var(--text2);font-size:13px">Loading...</div>';
-    document.getElementById('pdf-viewer-panel').style.display = 'none';
-    fetch('/api/pdfs', { headers: { 'x-user': currentUser.id } })
-      .then(r => r.json()).then(f => this._list(f))
-      .catch(() => { document.getElementById('pdfs-list').innerHTML = '<div style="color:var(--red);font-size:13px;padding:8px 0">⚠️ Server not running — open a terminal in the project folder and run <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;font-family:monospace">npm start</code> to enable Documents.</div>'; });
-  },
-
-  _list(files) {
-    const el = document.getElementById('pdfs-list');
-    if (!files.length) { el.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📄</div><p>No documents yet.</p></div>'; return; }
-    el.innerHTML = files.map(f => `
-      <div class="pdf-card">
-        <div class="pdf-icon">📄</div>
-        <div class="pdf-name">${esc(f.originalname)}</div>
-        <div class="pdf-size">${fmtBytes(f.size)}</div>
-        <div class="pdf-card-actions">
-          <button class="btn btn-primary btn-sm" onclick="PDFs.view('${esc(f.url)}','${esc(f.originalname)}')">View</button>
-          <button class="btn btn-danger btn-sm" onclick="PDFs.delete('${esc(f.filename)}')">Delete</button>
-        </div>
-      </div>`).join('');
-  },
-
-  upload(files) {
-    if (!files.length) return;
-    Promise.all(Array.from(files).map(file => {
-      const fd = new FormData(); fd.append('pdf', file);
-      return fetch('/api/pdfs/upload', { method: 'POST', headers: { 'x-user': currentUser.id }, body: fd }).then(r => r.json());
-    })).then(() => { toast(`${files.length} file(s) uploaded!`); this.load(); })
-      .catch(() => toast('Upload failed — is the server running? (npm start)', 'error'));
-  },
-
-  delete(filename) {
-    fetch(`/api/pdfs/${encodeURIComponent(filename)}`, { method: 'DELETE', headers: { 'x-user': currentUser.id } })
-      .then(() => { toast('Deleted'); this.load(); }).catch(() => toast('Delete failed', 'error'));
-  },
-
-  view(url, name) {
-    document.getElementById('upload-zone').style.display  = 'none';
-    document.getElementById('pdfs-list').style.display    = 'none';
-    document.getElementById('pdf-viewer-panel').style.display = 'flex';
-    document.getElementById('pdf-viewer-name').textContent = name;
-    this._page = 1;
-    pdfjsLib.getDocument(url).promise.then(doc => { this._doc = doc; this._pages = doc.numPages; this._render(); })
-      .catch(() => toast('Could not load PDF', 'error'));
-  },
-
-  _render() {
-    document.getElementById('pdf-page-info').textContent = `${this._page} / ${this._pages}`;
-    this._doc.getPage(this._page).then(page => {
-      const scale = Math.min(window.innerWidth * 0.8 / page.getViewport({ scale: 1 }).width, 1.5);
-      const vp = page.getViewport({ scale });
-      const cv = document.getElementById('pdf-canvas');
-      cv.width = vp.width; cv.height = vp.height;
-      page.render({ canvasContext: cv.getContext('2d'), viewport: vp });
-    });
-  },
-
-  prevPage() { if (this._page > 1) { this._page--; this._render(); } },
-  nextPage() { if (this._page < this._pages) { this._page++; this._render(); } },
-
-  closeViewer() {
-    document.getElementById('pdf-viewer-panel').style.display = 'none';
-    document.getElementById('upload-zone').style.display = '';
-    document.getElementById('pdfs-list').style.display   = '';
-  }
-};
-
-/* ════════════════════════════════════════════════
-   MESSAGES (floating chat panel)
+   MESSAGES (Supabase Realtime chat)
 ════════════════════════════════════════════════ */
 const Messages = {
   _open: false,
-  _convKey: (id1, id2) => { const s = [id1, id2].sort(); return `oppstrack_dm_${s[0]}_${s[1]}`; },
 
-  getConversation(otherId) {
-    try { return JSON.parse(localStorage.getItem(this._convKey(currentUser.id, otherId))) || []; } catch { return []; }
+  async getConversation(otherId) {
+    const { data } = await sb.from('messages').select('*')
+      .or(`and(from_user_id.eq.${currentUser.id},to_user_id.eq.${otherId}),and(from_user_id.eq.${otherId},to_user_id.eq.${currentUser.id})`)
+      .order('created');
+    return data || [];
   },
 
-  saveConversation(otherId, msgs) {
-    localStorage.setItem(this._convKey(currentUser.id, otherId), JSON.stringify(msgs));
+  async totalUnread() {
+    const { count } = await sb.from('messages').select('*', { count: 'exact', head: true })
+      .eq('to_user_id', currentUser.id).eq('read', false);
+    return count || 0;
   },
 
-  unreadFrom(otherId) {
-    return this.getConversation(otherId).filter(m => m.from !== currentUser.id && !m.read).length;
-  },
-
-  totalUnread() {
-    return Users.getAll().filter(u => u.id !== currentUser.id)
-      .reduce((sum, u) => sum + this.unreadFrom(u.id), 0);
-  },
-
-  updateBadge() {
-    const count = this.totalUnread();
+  async updateBadge() {
+    const count = await this.totalUnread();
     const badge = document.getElementById('chat-bubble-badge');
     if (!badge) return;
     if (count > 0) { badge.textContent = count; badge.style.display = ''; }
     else badge.style.display = 'none';
+  },
+
+  subscribeRealtime() {
+    if (_msgChannel) sb.removeChannel(_msgChannel);
+    _msgChannel = sb.channel(`msg-${currentUser.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'messages',
+        filter: `to_user_id=eq.${currentUser.id}`
+      }, payload => {
+        this.updateBadge();
+        if (this._open && currentChatId === payload.new.from_user_id) {
+          this._renderConv(currentChatId);
+        }
+      })
+      .subscribe();
   },
 
   togglePanel() {
@@ -1157,8 +1160,9 @@ const Messages = {
     this._showContacts();
   },
 
-  _renderContacts() {
-    const others   = Users.getAll().filter(u => u.id !== currentUser.id);
+  async _renderContacts() {
+    await Users.getAll(); // refresh user cache
+    const others   = _cachedUsers.filter(u => u.id !== currentUser.id);
     const contacts = document.getElementById('dm-contacts');
 
     if (others.length === 0) {
@@ -1170,12 +1174,14 @@ const Messages = {
       return;
     }
 
-    contacts.innerHTML = others.map(u => {
-      const pic     = Avatar.get(u.id);
-      const grad    = getUserGradient(u.id);
-      const unread  = this.unreadFrom(u.id);
-      const lastMsg = this.getConversation(u.id).slice(-1)[0];
-      const preview = lastMsg ? (lastMsg.from === currentUser.id ? 'You: ' : '') + lastMsg.text : 'Start a conversation';
+    const items = await Promise.all(others.map(async u => {
+      const pic    = Avatar.get(u.id);
+      const grad   = getUserGradient(u.id);
+      const { count: unread } = await sb.from('messages').select('*', { count: 'exact', head: true })
+        .eq('from_user_id', u.id).eq('to_user_id', currentUser.id).eq('read', false);
+      const msgs    = await this.getConversation(u.id);
+      const lastMsg = msgs[msgs.length - 1];
+      const preview = lastMsg ? (lastMsg.from_user_id === currentUser.id ? 'You: ' : '') + lastMsg.text : 'Start a conversation';
       return `<div class="dm-contact" onclick="Messages.openChat('${u.id}')">
         <div class="dm-contact-av" style="${pic?'':'background:linear-gradient('+grad+')'}">
           ${pic ? `<img src="${pic}" alt="${esc(u.name)}">` : getInitials(u.name)}
@@ -1186,27 +1192,27 @@ const Messages = {
           <div class="dm-contact-preview">${esc(preview)}</div>
         </div>
       </div>`;
-    }).join('');
+    }));
+    contacts.innerHTML = items.join('');
 
-    // Auto-open if only 1 other user
     if (others.length === 1) this.openChat(others[0].id);
   },
 
-  openChat(otherId) {
+  async openChat(otherId) {
     currentChatId = otherId;
-    const other = Users.get(otherId);
+    const other = _cachedUsers.find(u => u.id === otherId);
     document.getElementById('dm-contacts').style.display = 'none';
     const convView = document.getElementById('dm-conv-view');
     convView.style.display = 'flex';
     document.getElementById('chat-back-btn').style.display = '';
     document.getElementById('chat-panel-title').textContent = other ? esc(other.name) : 'Chat';
-    this._renderConv(otherId);
+    await this._renderConv(otherId);
     setTimeout(() => document.getElementById('dm-input')?.focus(), 50);
   },
 
-  _renderConv(otherId) {
-    const msgs  = this.getConversation(otherId);
-    const other = Users.get(otherId);
+  async _renderConv(otherId) {
+    const msgs  = await this.getConversation(otherId);
+    const other = _cachedUsers.find(u => u.id === otherId);
     const el    = document.getElementById('dm-messages');
     if (!el) return;
 
@@ -1221,12 +1227,12 @@ const Messages = {
     } else {
       let html = '', lastDate = '';
       msgs.forEach(m => {
-        const isMine     = m.from === currentUser.id;
+        const isMine     = m.from_user_id === currentUser.id;
         const senderPic  = isMine ? Avatar.get(currentUser.id) : Avatar.get(otherId);
         const senderGrad = isMine ? getUserGradient(currentUser.id) : getUserGradient(otherId);
         const senderInit = isMine ? getInitials(currentUser.name) : getInitials(other.name);
         const senderName = isMine ? currentUser.name : other.name;
-        const d       = new Date(m.timestamp);
+        const d       = new Date(m.created);
         const dateStr = d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
         const time    = d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
         if (dateStr !== lastDate) { html += `<div class="dm-date-divider">${dateStr}</div>`; lastDate = dateStr; }
@@ -1245,32 +1251,33 @@ const Messages = {
     }
 
     // Mark as read
-    const conv = this.getConversation(otherId);
-    let changed = false;
-    conv.forEach(m => { if (m.from !== currentUser.id && !m.read) { m.read = true; changed = true; } });
-    if (changed) { this.saveConversation(otherId, conv); this.updateBadge(); }
+    await sb.from('messages').update({ read: true })
+      .eq('from_user_id', otherId).eq('to_user_id', currentUser.id).eq('read', false);
+    this.updateBadge();
   },
 
-  send() {
+  async send() {
     if (!currentChatId) return;
     const input = document.getElementById('dm-input');
     const text  = input.value.trim();
     if (!text) return;
-    const conv = this.getConversation(currentChatId);
-    conv.push({ id: uid(), from: currentUser.id, text, timestamp: new Date().toISOString(), read: false });
-    this.saveConversation(currentChatId, conv);
     input.value = '';
-    this._renderConv(currentChatId);
+    await sb.from('messages').insert({
+      id: uid(),
+      from_user_id: currentUser.id,
+      to_user_id: currentChatId,
+      text,
+      read: false,
+      created: new Date().toISOString(),
+    });
+    await this._renderConv(currentChatId);
   },
 
   keydown(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); } }
 };
 
-setInterval(() => {
-  if (!currentUser) return;
-  Messages.updateBadge();
-  if (Messages._open && currentChatId) Messages._renderConv(currentChatId);
-}, 4000);
+// Periodic badge refresh as Realtime fallback
+setInterval(() => { if (currentUser) Messages.updateBadge(); }, 10000);
 
 /* ════════════════════════════════════════════════
    AI CHAT
@@ -1282,7 +1289,7 @@ const AIChat = {
   saveWebhook: u => localStorage.setItem('oppstrack_n8n_webhook', u.trim()),
 
   init() {
-    const saved = S.get('ai-messages');
+    const saved = JSON.parse(localStorage.getItem(`osd_${currentUser.id}_ai-messages`) || 'null');
     if (saved?.length > 0) this._msgs = saved;
     this._renderAll();
   },
@@ -1373,15 +1380,14 @@ const AIChat = {
         body: JSON.stringify({ messages: this._msgs, user: currentUser.name }) });
       if (!res.ok) throw new Error(`Status ${res.status}`);
       const data = await res.json();
-      // n8n Gemini "Message a Model" returns array or object with nested content.parts[0].text
       const d = Array.isArray(data) ? data[0] : data;
       const reply =
-        d?.content?.parts?.[0]?.text ||   // Gemini via n8n (Simplify Output ON)
+        d?.content?.parts?.[0]?.text ||
         d?.output || d?.text || d?.response ||
         (typeof d?.content === 'string' ? d.content : null) ||
         JSON.stringify(data);
       this._msgs.push({ role: 'assistant', content: reply });
-      S.set('ai-messages', this._msgs.slice(-50));
+      localStorage.setItem(`osd_${currentUser.id}_ai-messages`, JSON.stringify(this._msgs.slice(-50)));
     } catch(err) {
       this._msgs.push({ role:'assistant', content:`⚠️ Error: **${err.message}**\n\nCheck your n8n webhook URL and that the workflow is active.` });
     }
@@ -1390,7 +1396,7 @@ const AIChat = {
     this._renderAll();
   },
 
-  clear() { this._msgs = []; S.del('ai-messages'); this._renderAll(); },
+  clear() { this._msgs = []; localStorage.removeItem(`osd_${currentUser.id}_ai-messages`); this._renderAll(); },
   keydown(e) { if (e.key==='Enter'&&!e.shiftKey){e.preventDefault();this.send();} }
 };
 
@@ -1467,26 +1473,12 @@ function initPinDigits(containerId, onComplete) {
 /* ════════════════════════════════════════════════
    INIT
 ════════════════════════════════════════════════ */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   ParticlesBg.init();
-  renderLoginPage();
+  await renderLoginPage();
 
-  // PIN digit handlers
   initPinDigits('pin-digits',     () => PinAuth.verify());
   initPinDigits('reg-pin-digits', null);
-
-  // Drag & drop PDFs
-  const zone = document.getElementById('upload-zone');
-  if (zone) {
-    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
-    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-    zone.addEventListener('drop', e => {
-      e.preventDefault(); zone.classList.remove('drag-over');
-      const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
-      if (files.length) PDFs.upload(files);
-      else toast('Please drop PDF files only', 'error');
-    });
-  }
 });
 
 /* ════════════════════════════════════════════════
