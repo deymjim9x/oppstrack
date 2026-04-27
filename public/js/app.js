@@ -391,6 +391,10 @@ function showSection(name) {
   document.getElementById(`section-${name}`)?.classList.add('active');
   document.querySelector(`[data-section="${name}"]`)?.classList.add('active');
 
+  // Hide chat bubble on AI Assistant to avoid overlapping the send button
+  const bubble = document.getElementById('chat-bubble');
+  if (bubble) bubble.style.display = name === 'ai' ? 'none' : '';
+
   switch (name) {
     case 'dashboard':  Dashboard.render(); break;
     case 'tasks':      Tasks.render();     break;
