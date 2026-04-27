@@ -391,6 +391,8 @@ function showSection(name) {
   document.getElementById(`section-${name}`)?.classList.add('active');
   document.querySelector(`[data-section="${name}"]`)?.classList.add('active');
 
+  const bubble = document.getElementById('chat-bubble');
+  if (bubble) bubble.style.display = name === 'ai' ? 'none' : '';
 
   switch (name) {
     case 'dashboard':  Dashboard.render(); break;
@@ -1470,7 +1472,7 @@ const AIChat = {
     const webhook = this.getWebhook();
     if (!webhook) { el.innerHTML = this._setupPrompt(); return; }
     if (!this._msgs.length) {
-      el.innerHTML = `<div class="ai-welcome"><div class="ai-logo">🤖</div><h3>Gemini AI Assistant</h3>
+      el.innerHTML = `<div class="ai-welcome"><div class="ai-logo">🤖</div><h3>SideKick</h3>
         <p>Ask me anything!</p>
         <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="AIChat.openSettings()">⚙ Change webhook URL</button></div>`;
       return;
