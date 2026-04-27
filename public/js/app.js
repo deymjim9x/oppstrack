@@ -1472,7 +1472,7 @@ const AIChat = {
     const webhook = this.getWebhook();
     if (!webhook) { el.innerHTML = this._setupPrompt(); return; }
     if (!this._msgs.length) {
-      el.innerHTML = `<div class="ai-welcome"><div class="ai-logo"><img src="img/sidekick.gif" alt="SideKick" style="width:72px;height:72px;object-fit:contain;mix-blend-mode:screen"></div><h3>SideKick</h3>
+      el.innerHTML = `<div class="ai-welcome"><div class="ai-logo"><img src="img/sidekick.gif" alt="SideKick" style="width:72px;height:72px;object-fit:contain;mix-blend-mode:multiply;filter:contrast(1.3) brightness(0.9)"></div><h3>SideKick</h3>
         <p>Ask me anything!</p>
         <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="AIChat.openSettings()">⚙ Change webhook URL</button></div>`;
       return;
