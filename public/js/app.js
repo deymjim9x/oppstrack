@@ -1108,12 +1108,20 @@ const Notes = {
         <div class="note-card-body">${esc(n.body||'').replace(/\n/g,'<br>')}</div>
         <div class="note-card-footer">
           <span class="note-card-date">${fmtShort(new Date(n.updated||n.created))}</span>
-          <button class="note-card-del" onclick="Notes.delete('${n.id}',event)" title="Delete">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-              <polyline points="3,6 5,6 21,6"/>
-              <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
-            </svg>
-          </button>
+          <div style="display:flex;gap:4px">
+            <button class="note-card-del" onclick="Notes.openEdit('${n.id}');event.stopPropagation()" title="Edit" style="color:var(--text2)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+            <button class="note-card-del" onclick="Notes.delete('${n.id}',event)" title="Delete">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <polyline points="3,6 5,6 21,6"/>
+                <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>`;
     }).join('');
@@ -1204,12 +1212,41 @@ const Notes = {
         ${this._colorPicker(colorId)}
         <input type="hidden" id="note-color-input" value="${esc(colorId)}">
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer" style="flex-wrap:wrap;gap:8px">
         <button class="btn btn-danger" style="border:1px solid var(--red);margin-right:auto" onclick="Notes.delete('${note.id}')">Delete</button>
+        <button class="btn btn-ghost" onclick="Notes.promptSend('${note.id}')">📤 Send</button>
         <button class="btn btn-ghost" onclick="Notes._closeEdit()">Cancel</button>
         <button class="btn btn-primary" onclick="Notes.update('${note.id}')">Save</button>
       </div>`);
     this._applyModalColor(colorId);
+  },
+
+  async promptSend(id) {
+    const others = _cachedUsers.filter(u => u.id !== currentUser.id);
+    if (!others.length) { toast('No other users to send to', 'error'); return; }
+    const { data: note } = await sb.from('notes').select('*').eq('id', id).single();
+    if (!note) return;
+    const opts = others.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('');
+    Modal.show('Send Note', `
+      <p style="color:var(--text2);margin-bottom:14px;font-size:13px">Send this note as a message to:</p>
+      <select class="form-select" id="note-send-to">${opts}</select>
+      <div class="modal-footer" style="margin-top:16px">
+        <button class="btn btn-ghost" onclick="Notes.openEdit('${id}')">← Back</button>
+        <button class="btn btn-primary" onclick="Notes._doSend('${id}')">Send</button>
+      </div>`);
+  },
+
+  async _doSend(id) {
+    const toId = document.getElementById('note-send-to').value;
+    const { data: note } = await sb.from('notes').select('*').eq('id', id).single();
+    if (!note) return;
+    const text = (note.title ? `📋 ${note.title}\n\n` : '📋 Note\n\n') + (note.body || '');
+    await sb.from('messages').insert({
+      id: uid(), from_user_id: currentUser.id, to_user_id: toId,
+      text, image: null, read: false, created: new Date().toISOString()
+    });
+    Modal.close();
+    toast('Note sent!');
   },
 
   _closeEdit() {

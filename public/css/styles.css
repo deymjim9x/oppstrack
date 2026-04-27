@@ -668,10 +668,24 @@ option { background: var(--bg2); }
 
 .dm-input-wrap {
   border-top: 1px solid var(--border);
-  padding: 10px 12px;
+  padding: 8px 10px;
   background: var(--bg2);
 }
 .dm-input-row { display: flex; gap: 8px; align-items: flex-end; }
+#dm-input {
+  padding: 7px 11px;
+  font-size: 13px;
+  line-height: 1.4;
+  min-height: unset;
+  max-height: 80px;
+  overflow-y: auto;
+}
+.dm-send-btn {
+  padding: 7px 14px;
+  font-size: 13px;
+  border-radius: 18px;
+  flex-shrink: 0;
+}
 
 .dm-unread-badge {
   display: inline-block; background: var(--red); color: #fff;
