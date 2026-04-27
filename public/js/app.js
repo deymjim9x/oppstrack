@@ -1418,29 +1418,40 @@ const Messages = {
         <p style="font-size:12px">Say hi! Start your conversation.</p>
       </div>`;
     } else {
-      let html = '', lastDate = '';
-      msgs.forEach(m => {
+      let html = '', lastDate = '', lastSender = '';
+      msgs.forEach((m, i) => {
         const isMine     = m.from_user_id === currentUser.id;
         const senderPic  = isMine ? Avatar.get(currentUser.id) : Avatar.get(otherId);
         const senderGrad = isMine ? getUserGradient(currentUser.id) : getUserGradient(otherId);
         const senderInit = isMine ? getInitials(currentUser.name) : getInitials(other.name);
         const senderName = isMine ? currentUser.name : other.name;
-        const d       = new Date(m.created);
-        const dateStr = d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
-        const time    = d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
-        if (dateStr !== lastDate) { html += `<div class="dm-date-divider">${dateStr}</div>`; lastDate = dateStr; }
-        html += `<div class="dm-msg ${isMine?'mine':'theirs'}">
-          <div class="dm-avatar" style="${senderPic?'':'background:linear-gradient('+senderGrad+')'}">
-            ${senderPic?`<img src="${senderPic}" alt="${esc(senderName)}">`:senderInit}
-          </div>
+        const d          = new Date(m.created);
+        const dateStr    = d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+        const time       = d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+        const nextSender = msgs[i+1]?.from_user_id;
+        const isTail     = nextSender !== m.from_user_id;
+
+        if (dateStr !== lastDate) {
+          html += `<div class="dm-date-divider">${dateStr}</div>`;
+          lastDate = dateStr; lastSender = '';
+        }
+
+        const hideAvatar = !isTail;
+        const avatarHtml = `<div class="dm-avatar ${hideAvatar ? 'hidden' : ''}" style="${senderPic?'':'background:linear-gradient('+senderGrad+')'}">
+          ${senderPic ? `<img src="${senderPic}" alt="${esc(senderName)}">` : senderInit}
+        </div>`;
+
+        html += `<div class="dm-msg ${isMine?'mine':'theirs'}${isTail?' tail':''}">
+          ${avatarHtml}
           <div class="dm-bubble-wrap">
             <div class="dm-bubble">
-              ${m.image ? `<img src="${m.image}" style="max-width:220px;max-height:220px;border-radius:8px;display:block;margin-bottom:${m.text?'6px':'0'}" onclick="Messages._viewImg(this.src)">` : ''}
+              ${m.image ? `<img src="${m.image}" onclick="Messages._viewImg(this.src)">` : ''}
               ${m.text ? esc(m.text) : ''}
             </div>
-            <div class="dm-time">${time}</div>
+            ${isTail ? `<div class="dm-time">${time}</div>` : ''}
           </div>
         </div>`;
+        lastSender = m.from_user_id;
       });
       el.innerHTML = html;
       el.scrollTop = el.scrollHeight;
