@@ -116,66 +116,38 @@
 
       <nav class="sidebar-nav">
         <button class="nav-btn active" data-section="dashboard" onclick="showSection('dashboard')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="7" height="7" />
-            <rect x="14" y="3" width="7" height="7" />
-            <rect x="14" y="14" width="7" height="7" />
-            <rect x="3" y="14" width="7" height="7" />
-          </svg>
+          <span class="nav-emoji">💭</span>
           <span>Dashboard</span>
         </button>
         <button class="nav-btn" data-section="notes" onclick="showSection('notes')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-            <polyline points="14,2 14,8 20,8" />
-            <line x1="8" y1="13" x2="16" y2="13" />
-            <line x1="8" y1="17" x2="16" y2="17" />
-          </svg>
+          <span class="nav-emoji">📋</span>
           <span>Notes</span>
         </button>
         <button class="nav-btn" data-section="tasks" onclick="showSection('tasks')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 11l3 3L22 4" />
-            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-          </svg>
+          <span class="nav-emoji">🖥️</span>
           <span>Tasks</span>
           <span class="nav-badge" id="badge-tasks" style="display:none">0</span>
         </button>
         <button class="nav-btn" data-section="calendar" onclick="showSection('calendar')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="4" width="18" height="18" rx="2" />
-            <path d="M16 2v4M8 2v4M3 10h18" />
-          </svg>
+          <span class="nav-emoji">🗓️</span>
           <span>Calendar</span>
         </button>
         <button class="nav-btn" data-section="links" onclick="showSection('links')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
-            <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
-          </svg>
+          <span class="nav-emoji">⛓️‍💥</span>
           <span>Links</span>
         </button>
         <button class="nav-btn" data-section="ai" onclick="showSection('ai')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 8v4l3 3" />
-          </svg>
+          <span class="nav-emoji">🤖</span>
           <span>SideKick</span>
         </button>
         <button class="nav-btn" data-section="calculator" onclick="showSection('calculator')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="4" y="2" width="16" height="20" rx="2" />
-            <path d="M8 6h8M8 10h2M12 10h2M16 10h0M8 14h2M12 14h2M16 14h0M8 18h2M12 18h2M16 18h0" />
-          </svg>
+          <span class="nav-emoji">🧮</span>
           <span>Calculator</span>
         </button>
       </nav>
 
       <button class="pin-sidebar-btn" onclick="PinSetup.open()" id="pin-sidebar-btn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="11" width="18" height="11" rx="2" />
-          <path d="M7 11V7a5 5 0 0110 0v4" />
-        </svg>
+        <span class="nav-emoji">🗝️</span>
         <span id="pin-sidebar-label">Set PIN</span>
       </button>
 
