@@ -1557,12 +1557,18 @@ const Messages = {
           ${senderPic ? `<img src="${senderPic}" alt="${esc(senderName)}">` : senderInit}
         </div>`;
 
+        const unsendBtn = isMine
+          ? `<button class="dm-unsend-btn" onclick="Messages.unsend('${m.id}')" title="Unsend">✕</button>`
+          : '';
         html += `<div class="dm-msg ${isMine?'mine':'theirs'}${isTail?' tail':''}">
           ${avatarHtml}
           <div class="dm-bubble-wrap">
-            <div class="dm-bubble">
-              ${m.image ? `<img src="${m.image}" onclick="Messages._viewImg(this.src)">` : ''}
-              ${m.text ? esc(m.text) : ''}
+            <div class="dm-bubble-row">
+              ${unsendBtn}
+              <div class="dm-bubble">
+                ${m.image ? `<img src="${m.image}" onclick="Messages._viewImg(this.src)">` : ''}
+                ${m.text ? esc(m.text) : ''}
+              </div>
             </div>
             ${isTail ? `<div class="dm-time">${time}</div>` : ''}
           </div>
@@ -1600,6 +1606,11 @@ const Messages = {
   },
 
   keydown(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); } },
+
+  async unsend(id) {
+    await sb.from('messages').delete().eq('id', id).eq('from_user_id', currentUser.id);
+    if (currentChatId) this._renderConv(currentChatId);
+  },
 
   _viewImg(src) {
     const ov = document.createElement('div');
