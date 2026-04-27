@@ -655,27 +655,6 @@ option { background: var(--bg2); }
 .empty-state-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.5; }
 .empty-state p { font-size: 14px; }
 
-@media (max-width: 900px) {
-  .stats-row { grid-template-columns: repeat(2, 1fr); }
-  .dashboard-grid { grid-template-columns: 1fr; }
-}
-@media (max-width: 680px) {
-  #sidebar {
-    position: fixed;
-    top: 0; left: 0; bottom: 0;
-    z-index: 1000;
-    width: 260px;
-    transform: translateX(-100%);
-    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
-  }
-  #sidebar.mobile-open {
-    transform: translateX(0);
-    box-shadow: 6px 0 32px rgba(0,0,0,0.45);
-  }
-  .mobile-header { display: flex; }
-  .section { padding: 16px; }
-  .stats-row { grid-template-columns: repeat(2, 1fr); }
-}
 
 /* ══════════════════════════════════════════════
    LOGIN VIEW (Stage 6 — dynamic users + canvas)
@@ -935,11 +914,6 @@ option { background: var(--bg2); }
 
 .dm-chat-panel .dm-messages { flex: 1; }
 
-/* Responsive: stack on narrow screens */
-@media (max-width: 640px) {
-  .dm-layout { flex-direction: column; }
-  .dm-contacts { width: 100%; max-height: 180px; border-right: none; border-bottom: 1px solid var(--border); }
-}
 
 /* ══════════════════════════════════════════════
    NOTES
@@ -1339,3 +1313,33 @@ body.light-mode {
 body.light-mode #bg-canvas { opacity: 0.3; }
 body.light-mode .user-card { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
 body.light-mode #sidebar { box-shadow: 1px 0 0 var(--border); }
+
+/* ══════════════════════════════════════════════
+   RESPONSIVE — must be last to win cascade
+══════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .dashboard-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 680px) {
+  /* Sidebar becomes a slide-in drawer */
+  #sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    z-index: 1000;
+    width: 260px;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+  }
+  #sidebar.mobile-open {
+    transform: translateX(0);
+    box-shadow: 6px 0 32px rgba(0,0,0,0.45);
+  }
+  /* Show mobile header bar */
+  .mobile-header { display: flex; }
+  .section { padding: 16px; }
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .dm-layout { flex-direction: column; }
+  .dm-contacts { width: 100%; max-height: 180px; border-right: none; border-bottom: 1px solid var(--border); }
+}
