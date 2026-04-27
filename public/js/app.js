@@ -391,9 +391,6 @@ function showSection(name) {
   document.getElementById(`section-${name}`)?.classList.add('active');
   document.querySelector(`[data-section="${name}"]`)?.classList.add('active');
 
-  // Hide chat bubble on AI Assistant to avoid overlapping the send button
-  const bubble = document.getElementById('chat-bubble');
-  if (bubble) bubble.style.display = name === 'ai' ? 'none' : '';
 
   switch (name) {
     case 'dashboard':  Dashboard.render(); break;
@@ -1217,6 +1214,47 @@ const Notes = {
 ════════════════════════════════════════════════ */
 const Messages = {
   _open: false,
+  _pendingImage: null,
+
+  handlePaste(e) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const reader = new FileReader();
+        reader.onload = ev => {
+          this._resizeImage(ev.target.result, 800).then(compressed => {
+            this._pendingImage = compressed;
+            document.getElementById('dm-img-thumb').src = compressed;
+            document.getElementById('dm-img-preview').style.display = '';
+          });
+        };
+        reader.readAsDataURL(item.getAsFile());
+        break;
+      }
+    }
+  },
+
+  clearImage() {
+    this._pendingImage = null;
+    document.getElementById('dm-img-preview').style.display = 'none';
+    document.getElementById('dm-img-thumb').src = '';
+  },
+
+  _resizeImage(dataUrl, maxW) {
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxW / img.width);
+        const c = document.createElement('canvas');
+        c.width = img.width * scale; c.height = img.height * scale;
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = dataUrl;
+    });
+  },
 
   async getConversation(otherId) {
     const { data } = await sb.from('messages').select('*')
@@ -1360,7 +1398,10 @@ const Messages = {
             ${senderPic?`<img src="${senderPic}" alt="${esc(senderName)}">`:senderInit}
           </div>
           <div class="dm-bubble-wrap">
-            <div class="dm-bubble">${esc(m.text)}</div>
+            <div class="dm-bubble">
+              ${m.image ? `<img src="${m.image}" style="max-width:220px;max-height:220px;border-radius:8px;display:block;margin-bottom:${m.text?'6px':'0'}" onclick="Messages._viewImg(this.src)">` : ''}
+              ${m.text ? esc(m.text) : ''}
+            </div>
             <div class="dm-time">${time}</div>
           </div>
         </div>`;
@@ -1379,20 +1420,31 @@ const Messages = {
     if (!currentChatId) return;
     const input = document.getElementById('dm-input');
     const text  = input.value.trim();
-    if (!text) return;
+    if (!text && !this._pendingImage) return;
     input.value = '';
+    const image = this._pendingImage || null;
+    this.clearImage();
     await sb.from('messages').insert({
       id: uid(),
       from_user_id: currentUser.id,
       to_user_id: currentChatId,
-      text,
+      text: text || '',
+      image,
       read: false,
       created: new Date().toISOString(),
     });
     await this._renderConv(currentChatId);
   },
 
-  keydown(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); } }
+  keydown(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); } },
+
+  _viewImg(src) {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out';
+    ov.innerHTML = `<img src="${src}" style="max-width:90vw;max-height:90vh;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,.6)">`;
+    ov.onclick = () => ov.remove();
+    document.body.appendChild(ov);
+  }
 };
 
 // Periodic badge refresh as Realtime fallback

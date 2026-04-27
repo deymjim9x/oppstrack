@@ -458,9 +458,15 @@
     <div id="dm-conv-view" style="display:none;flex-direction:column;flex:1;min-height:0">
       <div id="dm-messages" class="dm-messages"></div>
       <div class="dm-input-wrap" id="dm-input-area">
+        <div id="dm-img-preview" style="display:none;padding:6px 10px 0">
+          <div style="position:relative;display:inline-block">
+            <img id="dm-img-thumb" style="max-height:80px;max-width:180px;border-radius:8px;border:1px solid var(--border)">
+            <button onclick="Messages.clearImage()" style="position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:1">×</button>
+          </div>
+        </div>
         <div class="dm-input-row">
-          <textarea id="dm-input" class="ai-input" placeholder="Type a message…" rows="2"
-            onkeydown="Messages.keydown(event)"></textarea>
+          <textarea id="dm-input" class="ai-input" placeholder="Type a message… (paste image with Ctrl+V)" rows="2"
+            onkeydown="Messages.keydown(event)" onpaste="Messages.handlePaste(event)"></textarea>
           <button class="btn btn-primary" onclick="Messages.send()">Send</button>
         </div>
       </div>

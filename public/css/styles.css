@@ -1028,7 +1028,7 @@ option { background: var(--bg2); }
 /* ── Chat Bubble FAB ── */
 #chat-bubble {
   position: fixed;
-  bottom: 28px;
+  bottom: 88px;
   right: 28px;
   z-index: 500;
   width: 58px;
