@@ -660,8 +660,21 @@ option { background: var(--bg2); }
   .dashboard-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 680px) {
-  #sidebar { display: none; }
-  .section { padding: 20px; }
+  #sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    z-index: 1000;
+    width: 260px;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+  }
+  #sidebar.mobile-open {
+    transform: translateX(0);
+    box-shadow: 6px 0 32px rgba(0,0,0,0.45);
+  }
+  .mobile-header { display: flex; }
+  .section { padding: 16px; }
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* ══════════════════════════════════════════════
@@ -1207,3 +1220,122 @@ option { background: var(--bg2); }
   flex: 1;
   min-height: 0;
 }
+
+/* ══════════════════════════════════════════════
+   MOBILE HEADER
+══════════════════════════════════════════════ */
+.mobile-header {
+  display: none;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  height: 54px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+.mobile-header-title {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hamburger-btn {
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  padding: 8px 6px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  transition: background 0.15s;
+}
+.hamburger-btn:hover { background: var(--bg3); }
+.hamburger-btn span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 2px;
+}
+
+/* ── Sidebar overlay backdrop ── */
+#sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 999;
+  backdrop-filter: blur(2px);
+}
+#sidebar-overlay.visible { display: block; }
+
+/* ══════════════════════════════════════════════
+   DARK MODE TOGGLE (iPhone style)
+══════════════════════════════════════════════ */
+.darkmode-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  margin: 4px 12px 4px;
+  background: var(--bg3);
+  border-radius: var(--radius);
+}
+.darkmode-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text2);
+}
+
+.ios-toggle {
+  position: relative;
+  display: inline-block;
+  width: 46px;
+  height: 27px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.ios-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+.ios-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: var(--bg4);
+  transition: background 0.22s;
+  cursor: pointer;
+}
+.ios-toggle input:checked ~ .ios-track { background: #34c759; }
+.ios-thumb {
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 21px; height: 21px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.3);
+  transition: transform 0.22s cubic-bezier(.34,1.56,.64,1);
+}
+.ios-toggle input:checked ~ .ios-track .ios-thumb { transform: translateX(19px); }
+
+/* ══════════════════════════════════════════════
+   LIGHT MODE THEME
+══════════════════════════════════════════════ */
+body.light-mode {
+  --bg: #f6f8fa;
+  --bg2: #ffffff;
+  --bg3: #f0f2f5;
+  --bg4: #e1e4e8;
+  --border: #d0d7de;
+  --text: #24292f;
+  --text2: #57606a;
+  --text3: #8c959f;
+}
+body.light-mode #bg-canvas { opacity: 0.3; }
+body.light-mode .user-card { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+body.light-mode #sidebar { box-shadow: 1px 0 0 var(--border); }

@@ -384,12 +384,46 @@ function logout() {
 /* ════════════════════════════════════════════════
    NAVIGATION
 ════════════════════════════════════════════════ */
+// ── Mobile Sidebar ──────────────────────────────
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('mobile-open');
+  document.getElementById('sidebar-overlay').classList.add('visible');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('mobile-open');
+  document.getElementById('sidebar-overlay').classList.remove('visible');
+}
+
+// ── Dark Mode ────────────────────────────────────
+function toggleDarkMode(isDark) {
+  document.body.classList.toggle('light-mode', !isDark);
+  localStorage.setItem('oppstrack_darkmode', isDark ? '1' : '0');
+}
+function initDarkMode() {
+  const saved = localStorage.getItem('oppstrack_darkmode');
+  const isDark = saved === null ? true : saved === '1';
+  document.body.classList.toggle('light-mode', !isDark);
+  const toggle = document.getElementById('darkmode-toggle');
+  if (toggle) toggle.checked = isDark;
+}
+
+const SECTION_TITLES = {
+  dashboard: 'Dashboard', notes: 'Notes', tasks: 'Tasks',
+  calendar: 'Calendar', links: 'Links', ai: 'SideKick',
+  calculator: 'Calculator'
+};
+
 function showSection(name) {
   currentSection = name;
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(`section-${name}`)?.classList.add('active');
   document.querySelector(`[data-section="${name}"]`)?.classList.add('active');
+
+  const titleEl = document.getElementById('mobile-section-title');
+  if (titleEl) titleEl.textContent = SECTION_TITLES[name] || name;
+
+  closeSidebar();
 
   const bubble = document.getElementById('chat-bubble');
   if (bubble) bubble.style.display = name === 'ai' ? 'none' : '';
@@ -1647,6 +1681,7 @@ function initPinDigits(containerId, onComplete) {
    INIT
 ════════════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', async () => {
+  initDarkMode();
   ParticlesBg.init();
   await renderLoginPage();
 

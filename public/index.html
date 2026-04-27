@@ -151,6 +151,15 @@
         <span id="pin-sidebar-label">Set PIN</span>
       </button>
 
+      <!-- Dark Mode Toggle -->
+      <div class="darkmode-row">
+        <span class="darkmode-label">🌙 Dark Mode</span>
+        <label class="ios-toggle">
+          <input type="checkbox" id="darkmode-toggle" checked onchange="toggleDarkMode(this.checked)">
+          <span class="ios-track"><span class="ios-thumb"></span></span>
+        </label>
+      </div>
+
       <button class="logout-btn" onclick="logout()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
@@ -161,8 +170,19 @@
       </button>
     </aside>
 
+    <!-- Sidebar overlay for mobile -->
+    <div id="sidebar-overlay" onclick="closeSidebar()"></div>
+
     <!-- Main Content -->
     <main id="main-content">
+
+      <!-- Mobile header -->
+      <div class="mobile-header" id="mobile-header">
+        <button class="hamburger-btn" onclick="openSidebar()" aria-label="Open menu">
+          <span></span><span></span><span></span>
+        </button>
+        <span class="mobile-header-title" id="mobile-section-title">Dashboard</span>
+      </div>
 
       <!-- Dashboard -->
       <section id="section-dashboard" class="section active">
