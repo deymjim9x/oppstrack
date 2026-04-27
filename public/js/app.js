@@ -1471,7 +1471,7 @@ const AIChat = {
     if (!webhook) { el.innerHTML = this._setupPrompt(); return; }
     if (!this._msgs.length) {
       el.innerHTML = `<div class="ai-welcome"><div class="ai-logo">🤖</div><h3>Gemini AI Assistant</h3>
-        <p>Powered by Google Gemini via n8n — ask me anything!</p>
+        <p>Ask me anything!</p>
         <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="AIChat.openSettings()">⚙ Change webhook URL</button></div>`;
       return;
     }
