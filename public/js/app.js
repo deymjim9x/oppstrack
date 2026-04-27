@@ -823,6 +823,12 @@ const Tasks = {
           </div>
         </div>
         <div class="task-actions">
+          <button class="icon-btn" title="Edit" onclick="Tasks.openEdit('${t.id}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="icon-btn" title="Share" onclick="Tasks.promptSend('${t.id}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/></svg>
+          </button>
           <button class="icon-btn" onclick="Tasks.delete('${t.id}')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
           </button>
@@ -880,6 +886,79 @@ const Tasks = {
     await sb.from('tasks').delete().eq('id', id);
     this.render();
     toast('Task deleted');
+  },
+
+  async openEdit(id) {
+    const tasks = await this.getAll();
+    const t = tasks.find(t => t.id === id);
+    if (!t) return;
+    Modal.show('Edit Task', `
+      <div class="form-group"><label class="form-label">Title *</label>
+        <input class="form-input" id="t-title" placeholder="Task title" value="${esc(t.title)}"></div>
+      <div class="form-group"><label class="form-label">Description</label>
+        <textarea class="form-textarea" id="t-desc" placeholder="Optional details...">${esc(t.description||'')}</textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Priority</label>
+          <select class="form-select" id="t-priority">
+            <option value="low" ${t.priority==='low'?'selected':''}>Low</option>
+            <option value="medium" ${t.priority==='medium'?'selected':''}>Medium</option>
+            <option value="high" ${t.priority==='high'?'selected':''}>High</option>
+          </select></div>
+        <div class="form-group"><label class="form-label">Due Date</label>
+          <input class="form-input" type="date" id="t-due" value="${t.due_date||''}"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger" style="border:1px solid var(--red);margin-right:auto" onclick="Tasks.delete('${t.id}');Modal.close()">Delete</button>
+        <button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
+        <button class="btn btn-primary" onclick="Tasks.update('${t.id}')">Save</button>
+      </div>`);
+  },
+
+  async update(id) {
+    const title = document.getElementById('t-title').value.trim();
+    if (!title) { toast('Please enter a task title', 'error'); return; }
+    await sb.from('tasks').update({
+      title,
+      description: document.getElementById('t-desc').value.trim(),
+      priority: document.getElementById('t-priority').value,
+      due_date: document.getElementById('t-due').value,
+    }).eq('id', id);
+    Modal.close();
+    this.render();
+    toast('Task updated!');
+  },
+
+  async promptSend(id) {
+    const others = _cachedUsers.filter(u => u.id !== currentUser.id);
+    if (!others.length) { toast('No other users to send to', 'error'); return; }
+    const tasks = await this.getAll();
+    const t = tasks.find(t => t.id === id);
+    if (!t) return;
+    const opts = others.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('');
+    Modal.show('Share Task', `
+      <p style="color:var(--text2);margin-bottom:14px;font-size:13px">Share "<strong>${esc(t.title)}</strong>" with:</p>
+      <select class="form-select" id="task-send-to">${opts}</select>
+      <div class="modal-footer" style="margin-top:16px">
+        <button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
+        <button class="btn btn-primary" onclick="Tasks._doSend('${id}')">Send</button>
+      </div>`);
+  },
+
+  async _doSend(id) {
+    const toId = document.getElementById('task-send-to').value;
+    const tasks = await this.getAll();
+    const t = tasks.find(t => t.id === id);
+    if (!t) return;
+    const priority = t.priority ? `[${t.priority.toUpperCase()}]` : '';
+    const due = t.due_date ? `\nDue: ${t.due_date}` : '';
+    const desc = t.description ? `\n${t.description}` : '';
+    const text = `📋 Task ${priority}: ${t.title}${desc}${due}`;
+    await sb.from('messages').insert({
+      id: uid(), from_user_id: currentUser.id, to_user_id: toId,
+      text, image: null, read: false, created: new Date().toISOString()
+    });
+    Modal.close();
+    toast('Task shared!');
   }
 };
 
