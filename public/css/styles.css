@@ -291,6 +291,7 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Sego
 .task-meta  { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 .badge { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+.badge-urgent { background: rgba(255,59,48,0.2);   color: #ff3b30; border: 1px solid rgba(255,59,48,0.4); }
 .badge-high   { background: rgba(248,81,73,0.15);  color: var(--red); }
 .badge-medium { background: rgba(227,179,65,0.15); color: var(--yellow); }
 .badge-low    { background: rgba(63,185,80,0.15);  color: var(--green); }
@@ -659,11 +660,11 @@ option { background: var(--bg2); }
 }
 .dm-msg.mine .dm-bubble-row { flex-direction: row-reverse; }
 
-.dm-unsend-btn {
+.dm-action-btn {
   background: none;
   border: none;
   color: var(--text3);
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
   padding: 2px 4px;
   border-radius: 4px;
@@ -672,8 +673,55 @@ option { background: var(--bg2); }
   flex-shrink: 0;
   line-height: 1;
 }
-.dm-msg:hover .dm-unsend-btn { opacity: 1; }
-.dm-unsend-btn:hover { color: var(--red); }
+.dm-msg:hover .dm-action-btn { opacity: 1; }
+.dm-action-btn:hover { color: var(--accent); }
+.dm-unsend-btn:hover { color: var(--red) !important; }
+
+.dm-edit-input {
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 5px 9px;
+  resize: none;
+  outline: none;
+  width: 100%;
+  line-height: 1.4;
+  min-width: 120px;
+}
+.dm-edit-actions {
+  display: flex;
+  gap: 5px;
+  margin-top: 4px;
+  justify-content: flex-end;
+}
+.dm-edit-save {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dm-edit-cancel {
+  background: var(--bg3);
+  color: var(--text2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.dm-edited {
+  font-size: 9px;
+  color: var(--text3);
+  margin-left: 4px;
+  font-style: italic;
+}
 
 .dm-time {
   font-size: 9.5px; color: var(--text3); padding: 0 4px;

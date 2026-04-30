@@ -722,9 +722,9 @@ const Dashboard = {
     if (pending.length) { badge.textContent = pending.length; badge.style.display = ''; }
     else badge.style.display = 'none';
 
-    // Recent tasks
+    // Recent tasks — sorted by priority
     const dashTasks = document.getElementById('dash-tasks');
-    const recent = allTasks.slice(-5).reverse();
+    const recent = Tasks._sortByPriority(allTasks.filter(t => !t.done)).slice(0, 5);
     dashTasks.innerHTML = recent.length
       ? recent.map(t => `<div class="dash-task-item">
           <div class="task-check ${t.done ? 'checked' : ''}" style="pointer-events:none"></div>
@@ -786,6 +786,15 @@ const Dashboard = {
 ════════════════════════════════════════════════ */
 const Tasks = {
   _filter: 'all',
+  _priorityOrder: { urgent: 0, high: 1, medium: 2, low: 3 },
+
+  _sortByPriority(list) {
+    return list.slice().sort((a, b) => {
+      const pa = this._priorityOrder[a.priority] ?? 99;
+      const pb = this._priorityOrder[b.priority] ?? 99;
+      return pa !== pb ? pa - pb : new Date(b.created) - new Date(a.created);
+    });
+  },
 
   async getAll() {
     const { data } = await sb.from('tasks').select('*').eq('user_id', currentUser.id).order('created');
@@ -804,14 +813,17 @@ const Tasks = {
     let list = tasks;
     if (this._filter === 'pending')   list = tasks.filter(t => !t.done);
     if (this._filter === 'completed') list = tasks.filter(t => t.done);
+    if (this._filter === 'urgent')    list = tasks.filter(t => t.priority === 'urgent' && !t.done);
     if (this._filter === 'high')      list = tasks.filter(t => t.priority === 'high' && !t.done);
+
+    list = this._sortByPriority(list);
 
     const el = document.getElementById('tasks-list');
     if (!list.length) {
       el.innerHTML = `<div class="empty-state"><div class="empty-state-icon">✓</div><p>${this._filter === 'all' ? 'No tasks yet — add one!' : 'No tasks in this category.'}</p></div>`;
       return;
     }
-    el.innerHTML = list.slice().reverse().map(t => `
+    el.innerHTML = list.map(t => `
       <div class="task-card ${t.done ? 'done' : ''}">
         <div class="task-check ${t.done ? 'checked' : ''}" onclick="Tasks.toggle('${t.id}')"></div>
         <div class="task-body">
@@ -845,7 +857,7 @@ const Tasks = {
       <div class="form-row">
         <div class="form-group"><label class="form-label">Priority</label>
           <select class="form-select" id="t-priority">
-            <option value="medium">Medium</option><option value="high">High</option><option value="low">Low</option>
+            <option value="urgent">🔴 Urgent</option><option value="high">High</option><option value="medium" selected>Medium</option><option value="low">Low</option>
           </select></div>
         <div class="form-group"><label class="form-label">Due Date</label>
           <input class="form-input" type="date" id="t-due"></div>
@@ -900,9 +912,10 @@ const Tasks = {
       <div class="form-row">
         <div class="form-group"><label class="form-label">Priority</label>
           <select class="form-select" id="t-priority">
-            <option value="low" ${t.priority==='low'?'selected':''}>Low</option>
-            <option value="medium" ${t.priority==='medium'?'selected':''}>Medium</option>
+            <option value="urgent" ${t.priority==='urgent'?'selected':''}>🔴 Urgent</option>
             <option value="high" ${t.priority==='high'?'selected':''}>High</option>
+            <option value="medium" ${t.priority==='medium'?'selected':''}>Medium</option>
+            <option value="low" ${t.priority==='low'?'selected':''}>Low</option>
           </select></div>
         <div class="form-group"><label class="form-label">Due Date</label>
           <input class="form-input" type="date" id="t-due" value="${t.due_date||''}"></div>
@@ -1557,20 +1570,21 @@ const Messages = {
           ${senderPic ? `<img src="${senderPic}" alt="${esc(senderName)}">` : senderInit}
         </div>`;
 
-        const unsendBtn = isMine
-          ? `<button class="dm-unsend-btn" onclick="Messages.unsend('${m.id}')" title="Unsend">✕</button>`
-          : '';
-        html += `<div class="dm-msg ${isMine?'mine':'theirs'}${isTail?' tail':''}">
+        const editedTag = m.edited ? `<span class="dm-edited">edited</span>` : '';
+        const mineActions = isMine ? `
+          <button class="dm-action-btn" onclick="Messages.startEdit('${m.id}')" title="Edit">✎</button>
+          <button class="dm-action-btn dm-unsend-btn" onclick="Messages.unsend('${m.id}')" title="Unsend">✕</button>` : '';
+        html += `<div class="dm-msg ${isMine?'mine':'theirs'}${isTail?' tail':''}" data-msgid="${m.id}">
           ${avatarHtml}
           <div class="dm-bubble-wrap">
             <div class="dm-bubble-row">
-              ${unsendBtn}
+              ${mineActions}
               <div class="dm-bubble">
                 ${m.image ? `<img src="${m.image}" onclick="Messages._viewImg(this.src)">` : ''}
                 ${m.text ? esc(m.text) : ''}
               </div>
             </div>
-            ${isTail ? `<div class="dm-time">${time}</div>` : ''}
+            ${isTail ? `<div class="dm-time">${time}${editedTag}</div>` : ''}
           </div>
         </div>`;
         lastSender = m.from_user_id;
@@ -1609,6 +1623,38 @@ const Messages = {
 
   async unsend(id) {
     await sb.from('messages').delete().eq('id', id).eq('from_user_id', currentUser.id);
+    if (currentChatId) this._renderConv(currentChatId);
+  },
+
+  startEdit(id) {
+    const row = document.querySelector(`[data-msgid="${id}"] .dm-bubble-row`);
+    if (!row) return;
+    const bubble = row.querySelector('.dm-bubble');
+    const currentText = bubble.childNodes[bubble.childNodes.length - 1]?.textContent?.trim() || '';
+    row.querySelector('.dm-bubble').outerHTML; // just reference
+    bubble.innerHTML = `
+      <textarea class="dm-edit-input" id="dm-edit-${id}" rows="1"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();Messages.saveEdit('${id}')}"
+        onkeyup="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
+      >${currentText}</textarea>
+      <div class="dm-edit-actions">
+        <button class="dm-edit-save" onclick="Messages.saveEdit('${id}')">Save</button>
+        <button class="dm-edit-cancel" onclick="Messages.cancelEdit()">Cancel</button>
+      </div>`;
+    const ta = document.getElementById(`dm-edit-${id}`);
+    if (ta) { ta.style.height = ta.scrollHeight + 'px'; ta.focus(); ta.select(); }
+  },
+
+  async saveEdit(id) {
+    const ta = document.getElementById(`dm-edit-${id}`);
+    if (!ta) return;
+    const text = ta.value.trim();
+    if (!text) return;
+    await sb.from('messages').update({ text, edited: true }).eq('id', id).eq('from_user_id', currentUser.id);
+    if (currentChatId) this._renderConv(currentChatId);
+  },
+
+  cancelEdit() {
     if (currentChatId) this._renderConv(currentChatId);
   },
 
