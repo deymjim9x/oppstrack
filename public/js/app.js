@@ -1818,6 +1818,48 @@ const Calc = {
 };
 
 /* ════════════════════════════════════════════════
+   RESIZABLE TABLE COLUMNS
+════════════════════════════════════════════════ */
+function initResizableCols(table, storageKey) {
+  const ths = table.querySelectorAll('th');
+  ths.forEach((th, i) => {
+    // Restore saved width
+    const saved = localStorage.getItem(`${storageKey}_col_${i}`);
+    if (saved) th.style.width = saved;
+
+    // Skip last column (actions)
+    if (i === ths.length - 1) return;
+
+    const handle = document.createElement('div');
+    handle.className = 'col-resize-handle';
+    th.appendChild(handle);
+
+    let startX, startW;
+    handle.addEventListener('mousedown', e => {
+      startX = e.pageX;
+      startW = th.offsetWidth;
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+
+      const onMove = e => {
+        const newW = Math.max(50, startW + (e.pageX - startX));
+        th.style.width = newW + 'px';
+      };
+      const onUp = () => {
+        localStorage.setItem(`${storageKey}_col_${i}`, th.style.width);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      e.preventDefault();
+    });
+  });
+}
+
+/* ════════════════════════════════════════════════
    COMMUNICATIONS LOG
 ════════════════════════════════════════════════ */
 const Comms = {
@@ -1857,6 +1899,8 @@ const Comms = {
           </div>
         </td>
       </tr>`).join('');
+    const tbl = body.closest('table');
+    if (tbl) initResizableCols(tbl, 'comms');
   },
 
   _form(r = {}) {
@@ -2008,6 +2052,8 @@ const DateFlags = {
         </td>
       </tr>`;
     }).join('');
+    const tbl = body.closest('table');
+    if (tbl) initResizableCols(tbl, 'flags');
   },
 
   _form(r = {}) {

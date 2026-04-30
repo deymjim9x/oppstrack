@@ -1621,3 +1621,22 @@ body.light-mode #sidebar { box-shadow: 1px 0 0 var(--border); }
 
 /* Field name */
 .flags-sheet .flag-field { font-weight: 500; color: #1a3a6b; }
+
+/* ── Column resize handle ── */
+.col-resize-handle {
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 3;
+  background: transparent;
+  transition: background 0.15s;
+}
+.col-resize-handle:hover,
+.col-resize-handle:active {
+  background: rgba(255,255,255,0.35);
+}
+/* Make th relative so handle positions correctly */
+.comms-sheet th { position: relative; }
+/* Let table size itself from column widths */
+.comms-sheet { table-layout: auto; }
