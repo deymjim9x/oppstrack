@@ -410,7 +410,7 @@ function initDarkMode() {
 const SECTION_TITLES = {
   dashboard: 'Dashboard', notes: 'Notes', tasks: 'Tasks',
   calendar: 'Calendar', links: 'Links', ai: 'SideKick',
-  calculator: 'Calculator'
+  calculator: 'Calculator', comms: 'Comms Log'
 };
 
 function showSection(name) {
@@ -434,6 +434,7 @@ function showSection(name) {
     case 'calendar':   Calendar.render();  break;
     case 'links':      Links.render();     break;
     case 'notes':      Notes.render();     break;
+    case 'comms':      Comms.render();     break;
     case 'messages':   if (!Messages._open) Messages.togglePanel(); break;
   }
 }
@@ -1813,6 +1814,143 @@ const Calc = {
   percent(){ this._cur=String(parseFloat(this._cur)/100);this._display(); },
   _renderHistory(){ document.getElementById('calc-history-list').innerHTML=this._history.map(h=>{const p=h.split('=');return`<div class="hist-item">${esc(p[0])}= <span>${esc(p[1])}</span></div>`;}).join(''); },
   clearHistory(){ this._history=[];this._renderHistory(); }
+};
+
+/* ════════════════════════════════════════════════
+   COMMUNICATIONS LOG
+════════════════════════════════════════════════ */
+const Comms = {
+  CHANNELS: ['Email', 'Phone', 'WhatsApp', 'Slack', 'Video Call', 'In-Person', 'SMS', 'Other'],
+
+  async getAll() {
+    const { data } = await sb.from('communications')
+      .select('*').eq('user_id', currentUser.id).order('created');
+    return data || [];
+  },
+
+  async render() {
+    const rows = await this.getAll();
+    const body = document.getElementById('comms-body');
+    const sub  = document.getElementById('comms-sub');
+    if (sub) sub.textContent = `${rows.length} entr${rows.length === 1 ? 'y' : 'ies'}`;
+    if (!rows.length) {
+      body.innerHTML = `<tr class="comms-empty-row"><td colspan="9">No entries yet — click "+ Add Entry" to log a communication.</td></tr>`;
+      return;
+    }
+    body.innerHTML = rows.map((r, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${esc(r.date || '')}</td>
+        <td>${esc(r.time || '')}</td>
+        <td><strong>${esc(r.contact || '')}</strong></td>
+        <td><span class="comms-channel">${esc(r.channel || '')}</span></td>
+        <td>${esc(r.subject || '')}</td>
+        <td>${esc(r.summary || '')}</td>
+        <td style="text-align:center">${r.follow_up === 'Yes'
+          ? `<span class="fu-yes">YES</span>`
+          : `<span class="fu-no">NO</span>`}</td>
+        <td>
+          <div class="comms-actions">
+            <button class="comms-btn" onclick="Comms.openEdit('${r.id}')" title="Edit">✎</button>
+            <button class="comms-btn del" onclick="Comms.delete('${r.id}')" title="Delete">🗑</button>
+          </div>
+        </td>
+      </tr>`).join('');
+  },
+
+  _form(r = {}) {
+    const chOpts = this.CHANNELS.map(c =>
+      `<option value="${c}" ${r.channel === c ? 'selected' : ''}>${c}</option>`).join('');
+    return `
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Date</label>
+          <input class="form-input" type="date" id="c-date" value="${esc(r.date || '')}"></div>
+        <div class="form-group"><label class="form-label">Time</label>
+          <input class="form-input" type="time" id="c-time" value="${esc(r.time || '')}"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Contact / Company *</label>
+          <input class="form-input" id="c-contact" placeholder="e.g. Ellen / Wonlex" value="${esc(r.contact || '')}"></div>
+        <div class="form-group"><label class="form-label">Channel</label>
+          <select class="form-select" id="c-channel">${chOpts}</select></div>
+      </div>
+      <div class="form-group"><label class="form-label">Subject *</label>
+        <input class="form-input" id="c-subject" placeholder="e.g. Invoice discrepancy" value="${esc(r.subject || '')}"></div>
+      <div class="form-group"><label class="form-label">Summary / Outcome</label>
+        <textarea class="form-textarea" id="c-summary" rows="3" placeholder="What was discussed or agreed...">${esc(r.summary || '')}</textarea></div>
+      <div class="form-group"><label class="form-label">Follow-up Needed?</label>
+        <select class="form-select" id="c-followup">
+          <option value="No" ${r.follow_up !== 'Yes' ? 'selected' : ''}>No</option>
+          <option value="Yes" ${r.follow_up === 'Yes' ? 'selected' : ''}>Yes</option>
+        </select></div>`;
+  },
+
+  openAdd() {
+    const today = new Date().toISOString().slice(0, 10);
+    const now   = new Date().toTimeString().slice(0, 5);
+    Modal.show('New Communication Entry', `
+      ${this._form({ date: today, time: now, channel: 'Email', follow_up: 'No' })}
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
+        <button class="btn btn-primary" onclick="Comms.add()">Save Entry</button>
+      </div>`, true);
+  },
+
+  async add() {
+    const contact = document.getElementById('c-contact').value.trim();
+    const subject = document.getElementById('c-subject').value.trim();
+    if (!contact || !subject) { toast('Contact and Subject are required', 'error'); return; }
+    await sb.from('communications').insert({
+      id: uid(), user_id: currentUser.id,
+      date:     document.getElementById('c-date').value,
+      time:     document.getElementById('c-time').value,
+      contact,
+      channel:  document.getElementById('c-channel').value,
+      subject,
+      summary:  document.getElementById('c-summary').value.trim(),
+      follow_up: document.getElementById('c-followup').value,
+      created:  new Date().toISOString(),
+    });
+    Modal.close();
+    this.render();
+    toast('Entry saved!');
+  },
+
+  async openEdit(id) {
+    const { data: r } = await sb.from('communications').select('*').eq('id', id).single();
+    if (!r) return;
+    Modal.show('Edit Entry', `
+      ${this._form(r)}
+      <div class="modal-footer">
+        <button class="btn btn-danger" style="border:1px solid var(--red);margin-right:auto" onclick="Comms.delete('${id}');Modal.close()">Delete</button>
+        <button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
+        <button class="btn btn-primary" onclick="Comms.update('${id}')">Save</button>
+      </div>`, true);
+  },
+
+  async update(id) {
+    const contact = document.getElementById('c-contact').value.trim();
+    const subject = document.getElementById('c-subject').value.trim();
+    if (!contact || !subject) { toast('Contact and Subject are required', 'error'); return; }
+    await sb.from('communications').update({
+      date:     document.getElementById('c-date').value,
+      time:     document.getElementById('c-time').value,
+      contact,
+      channel:  document.getElementById('c-channel').value,
+      subject,
+      summary:  document.getElementById('c-summary').value.trim(),
+      follow_up: document.getElementById('c-followup').value,
+    }).eq('id', id);
+    Modal.close();
+    this.render();
+    toast('Entry updated!');
+  },
+
+  async delete(id) {
+    await sb.from('communications').delete().eq('id', id);
+    this.render();
+    toast('Entry deleted');
+  },
 };
 
 document.addEventListener('keydown', e => {

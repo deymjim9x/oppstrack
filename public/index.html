@@ -144,6 +144,10 @@
           <span class="nav-emoji">🧮</span>
           <span>Calculator</span>
         </button>
+        <button class="nav-btn" data-section="comms" onclick="showSection('comms')">
+          <span class="nav-emoji">📞</span>
+          <span>Comms Log</span>
+        </button>
       </nav>
 
       <button class="pin-sidebar-btn" onclick="PinSetup.open()" id="pin-sidebar-btn">
@@ -420,6 +424,36 @@
             <div id="calc-history-list" class="calc-history-list"></div>
             <button class="btn btn-ghost btn-sm" onclick="Calc.clearHistory()">Clear History</button>
           </div>
+        </div>
+      </section>
+
+      <!-- Communications Log -->
+      <section id="section-comms" class="section">
+        <div class="section-header">
+          <div>
+            <h1>Communication Log</h1>
+            <p class="section-sub" id="comms-sub">Track calls, emails, and messages</p>
+          </div>
+          <button class="btn btn-primary" onclick="Comms.openAdd()">+ Add Entry</button>
+        </div>
+        <div class="comms-sheet-wrap">
+          <table class="comms-sheet">
+            <thead>
+              <tr>
+                <th style="width:32px">#</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Contact / Company</th>
+                <th>Channel</th>
+                <th>Subject</th>
+                <th>Summary / Outcome</th>
+                <th>Follow-up Needed?</th>
+                <th style="width:60px"></th>
+              </tr>
+            </thead>
+            <tbody id="comms-body">
+            </tbody>
+          </table>
         </div>
       </section>
 
