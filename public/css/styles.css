@@ -1586,3 +1586,38 @@ body.light-mode #sidebar { box-shadow: 1px 0 0 var(--border); }
 .comms-sheet th:nth-child(7), .comms-sheet td:nth-child(7) { min-width: 200px; }
 .comms-sheet th:nth-child(8), .comms-sheet td:nth-child(8) { width: 120px; text-align: center; }
 .comms-sheet th:nth-child(9), .comms-sheet td:nth-child(9) { width: 60px; }
+
+/* ══════════════════════════════════════════════
+   DATE FLAGS TABLE
+══════════════════════════════════════════════ */
+.flags-sheet th:nth-child(2) { min-width: 160px; }
+.flags-sheet th:nth-child(3) { width: 110px; }
+.flags-sheet th:nth-child(4) { width: 110px; text-align: center; }
+.flags-sheet th:nth-child(5) { width: 120px; text-align: center; }
+.flags-sheet th:nth-child(6) { width: 80px;  text-align: center; }
+.flags-sheet th:nth-child(7) { min-width: 220px; }
+
+/* Row tint by status */
+.flags-sheet tr.row-expired  { background: #fff0f0 !important; }
+.flags-sheet tr.row-invalid  { background: #fff0f0 !important; }
+.flags-sheet tr.row-overdue  { background: #fff0f0 !important; }
+.flags-sheet tr.row-paid     { background: #f0fff4 !important; }
+.flags-sheet tr.row-completed{ background: #f0fff4 !important; }
+.flags-sheet tr.row-upcoming { background: #fffde7 !important; }
+.flags-sheet tr.row-pending  { background: #fff8f0 !important; }
+.flags-sheet tr.row-tbd      { background: #fafafa !important; }
+.flags-sheet tr:hover        { filter: brightness(0.96); }
+
+/* Status badge */
+.flag-status {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+
+/* Risk badge */
+.risk-high   { color: #c0392b; font-weight: 700; font-size: 12px; }
+.risk-medium { color: #d67f00; font-weight: 700; font-size: 12px; }
+.risk-low    { color: #27ae60; font-weight: 700; font-size: 12px; }
+
+/* Field name */
+.flags-sheet .flag-field { font-weight: 500; color: #1a3a6b; }

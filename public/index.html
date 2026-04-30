@@ -148,6 +148,10 @@
           <span class="nav-emoji">📞</span>
           <span>Comms Log</span>
         </button>
+        <button class="nav-btn" data-section="flags" onclick="showSection('flags')">
+          <span class="nav-emoji">🚩</span>
+          <span>Date Flags</span>
+        </button>
       </nav>
 
       <button class="pin-sidebar-btn" onclick="PinSetup.open()" id="pin-sidebar-btn">
@@ -453,6 +457,34 @@
             </thead>
             <tbody id="comms-body">
             </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Date Flags -->
+      <section id="section-flags" class="section">
+        <div class="section-header">
+          <div>
+            <h1>🚩 Date Flags</h1>
+            <p class="section-sub">All time-sensitive fields — expired or approaching deadlines flagged immediately</p>
+          </div>
+          <button class="btn btn-primary" onclick="DateFlags.openAdd()">+ Add Flag</button>
+        </div>
+        <div class="comms-sheet-wrap">
+          <table class="comms-sheet flags-sheet">
+            <thead>
+              <tr>
+                <th style="width:32px">#</th>
+                <th>Field</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Days Until / Since</th>
+                <th>Risk</th>
+                <th>Action Required</th>
+                <th style="width:60px"></th>
+              </tr>
+            </thead>
+            <tbody id="flags-body"></tbody>
           </table>
         </div>
       </section>

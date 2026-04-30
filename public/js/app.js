@@ -410,7 +410,7 @@ function initDarkMode() {
 const SECTION_TITLES = {
   dashboard: 'Dashboard', notes: 'Notes', tasks: 'Tasks',
   calendar: 'Calendar', links: 'Links', ai: 'SideKick',
-  calculator: 'Calculator', comms: 'Comms Log'
+  calculator: 'Calculator', comms: 'Comms Log', flags: 'Date Flags'
 };
 
 function showSection(name) {
@@ -435,6 +435,7 @@ function showSection(name) {
     case 'links':      Links.render();     break;
     case 'notes':      Notes.render();     break;
     case 'comms':      Comms.render();     break;
+    case 'flags':      DateFlags.render(); break;
     case 'messages':   if (!Messages._open) Messages.togglePanel(); break;
   }
 }
@@ -1950,6 +1951,150 @@ const Comms = {
     await sb.from('communications').delete().eq('id', id);
     this.render();
     toast('Entry deleted');
+  },
+};
+
+/* ════════════════════════════════════════════════
+   DATE FLAGS
+════════════════════════════════════════════════ */
+const DateFlags = {
+  STATUSES: [
+    { value: 'Expired',   label: '🔴 Expired',   cls: 'row-expired'   },
+    { value: 'Invalid',   label: '🔴 Invalid',   cls: 'row-invalid'   },
+    { value: 'Overdue',   label: '🔴 Overdue',   cls: 'row-overdue'   },
+    { value: 'Pending',   label: '⏳ Pending',   cls: 'row-pending'   },
+    { value: 'Upcoming',  label: '🟡 Upcoming',  cls: 'row-upcoming'  },
+    { value: 'Paid',      label: '✅ Paid',      cls: 'row-paid'      },
+    { value: 'Completed', label: '✅ Completed', cls: 'row-completed' },
+    { value: 'TBD',       label: '⏳ TBD',       cls: 'row-tbd'       },
+  ],
+
+  _rowClass(status) {
+    return (this.STATUSES.find(s => s.value === status) || {}).cls || '';
+  },
+  _statusLabel(status) {
+    return (this.STATUSES.find(s => s.value === status) || {}).label || status;
+  },
+
+  async getAll() {
+    const { data } = await sb.from('date_flags')
+      .select('*').eq('user_id', currentUser.id).order('created');
+    return data || [];
+  },
+
+  async render() {
+    const rows = await this.getAll();
+    const body = document.getElementById('flags-body');
+    if (!rows.length) {
+      body.innerHTML = `<tr class="comms-empty-row"><td colspan="8">No flags yet — click "+ Add Flag" to track a date-sensitive field.</td></tr>`;
+      return;
+    }
+    body.innerHTML = rows.map((r, i) => {
+      const rowCls = this._rowClass(r.status);
+      const riskCls = { HIGH: 'risk-high', MEDIUM: 'risk-medium', LOW: 'risk-low' }[r.risk] || '';
+      return `<tr class="${rowCls}">
+        <td>${i + 1}</td>
+        <td class="flag-field">${esc(r.field_name || '')}</td>
+        <td>${esc(r.date || '')}</td>
+        <td style="text-align:center"><span class="flag-status">${this._statusLabel(r.status)}</span></td>
+        <td style="text-align:center">${esc(r.days_info || '')}</td>
+        <td style="text-align:center"><span class="${riskCls}">${esc(r.risk || '')}</span></td>
+        <td>${esc(r.action_required || '')}</td>
+        <td>
+          <div class="comms-actions">
+            <button class="comms-btn" onclick="DateFlags.openEdit('${r.id}')" title="Edit">✎</button>
+            <button class="comms-btn del" onclick="DateFlags.delete('${r.id}')" title="Delete">🗑</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  },
+
+  _form(r = {}) {
+    const stOpts = this.STATUSES.map(s =>
+      `<option value="${s.value}" ${r.status === s.value ? 'selected' : ''}>${s.label}</option>`).join('');
+    return `
+      <div class="form-group"><label class="form-label">Field Name *</label>
+        <input class="form-input" id="f-field" placeholder="e.g. Shipping Quote Expiry" value="${esc(r.field_name || '')}"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Date</label>
+          <input class="form-input" id="f-date" placeholder="e.g. Feb 28, 2025 or TBD" value="${esc(r.date || '')}"></div>
+        <div class="form-group"><label class="form-label">Status</label>
+          <select class="form-select" id="f-status">${stOpts}</select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Days Until / Since</label>
+          <input class="form-input" id="f-days" placeholder="e.g. ~5 days, Yesterday, N/A" value="${esc(r.days_info || '')}"></div>
+        <div class="form-group"><label class="form-label">Risk</label>
+          <select class="form-select" id="f-risk">
+            <option value="HIGH"   ${r.risk==='HIGH'   ?'selected':''}>HIGH</option>
+            <option value="MEDIUM" ${r.risk==='MEDIUM' ?'selected':''}>MEDIUM</option>
+            <option value="LOW"    ${r.risk==='LOW'    ?'selected':''}>LOW</option>
+          </select></div>
+      </div>
+      <div class="form-group"><label class="form-label">Action Required</label>
+        <textarea class="form-textarea" id="f-action" rows="2" placeholder="What needs to be done...">${esc(r.action_required || '')}</textarea></div>`;
+  },
+
+  openAdd() {
+    Modal.show('New Date Flag', `
+      ${this._form({ status: 'Pending', risk: 'MEDIUM' })}
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
+        <button class="btn btn-primary" onclick="DateFlags.add()">Save Flag</button>
+      </div>`, true);
+  },
+
+  async add() {
+    const field_name = document.getElementById('f-field').value.trim();
+    if (!field_name) { toast('Field name is required', 'error'); return; }
+    await sb.from('date_flags').insert({
+      id: uid(), user_id: currentUser.id,
+      field_name,
+      date:            document.getElementById('f-date').value.trim(),
+      status:          document.getElementById('f-status').value,
+      days_info:       document.getElementById('f-days').value.trim(),
+      risk:            document.getElementById('f-risk').value,
+      action_required: document.getElementById('f-action').value.trim(),
+      created:         new Date().toISOString(),
+    });
+    Modal.close();
+    this.render();
+    toast('Flag saved!');
+  },
+
+  async openEdit(id) {
+    const { data: r } = await sb.from('date_flags').select('*').eq('id', id).single();
+    if (!r) return;
+    Modal.show('Edit Date Flag', `
+      ${this._form(r)}
+      <div class="modal-footer">
+        <button class="btn btn-danger" style="border:1px solid var(--red);margin-right:auto" onclick="DateFlags.delete('${id}');Modal.close()">Delete</button>
+        <button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
+        <button class="btn btn-primary" onclick="DateFlags.update('${id}')">Save</button>
+      </div>`, true);
+  },
+
+  async update(id) {
+    const field_name = document.getElementById('f-field').value.trim();
+    if (!field_name) { toast('Field name is required', 'error'); return; }
+    await sb.from('date_flags').update({
+      field_name,
+      date:            document.getElementById('f-date').value.trim(),
+      status:          document.getElementById('f-status').value,
+      days_info:       document.getElementById('f-days').value.trim(),
+      risk:            document.getElementById('f-risk').value,
+      action_required: document.getElementById('f-action').value.trim(),
+    }).eq('id', id);
+    Modal.close();
+    this.render();
+    toast('Flag updated!');
+  },
+
+  async delete(id) {
+    await sb.from('date_flags').delete().eq('id', id);
+    this.render();
+    toast('Flag deleted');
   },
 };
 
